@@ -1,0 +1,14 @@
+[server]
+listen = ":443"
+host = "api.example.com"
+tls = "lets_encrypt"
+
+[limits]
+max_body = "1m"
+
+[upstreams.api]
+peers = ["http://127.0.0.1:3000"]
+
+[routes]
+"GET /health" = "static:healthcheck"
+"POST /v1/*" = "proxy:api"

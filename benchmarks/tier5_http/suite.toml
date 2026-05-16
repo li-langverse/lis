@@ -7,5 +7,9 @@ include = ["static_small"]
 timing = false
 
 [profiles.nightly]
-include = ["static_small"]
+include = ["static_small", "keepalive_pipelining"]
 timing = true
+
+[profiles.baseline]
+include = ["static_small", "keepalive_pipelining"]
+timing = false

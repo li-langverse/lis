@@ -1,0 +1,18 @@
+[workspace]
+members = [
+  "li-bytes",
+  "li-net",
+  "li-rng",
+  "li-prob",
+  "li-crypto",
+  "li-tls",
+  "li-acme",
+  "li-schema",
+  "li-log",
+  "li-http",
+  "li-httpd",
+  "li-math",
+]
+
+[workspace.package]
+edition = "2026"

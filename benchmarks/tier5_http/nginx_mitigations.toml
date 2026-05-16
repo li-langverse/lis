@@ -1,5 +1,89 @@
+# Curated nginx security checklist — sync with audit_nginx_src.py when submodule present.
+# See docs/security-nginx-src-audit.md
+
 [[mitigation]]
 id = "duplicate_content_length"
+cve = ["CVE-2019-20372"]
+nginx_version_fixed = "1.17.7"
+src = "src/http/ngx_http_parse.c"
+notes = "reject duplicate Content-Length"
+exploit = "exploits/request_smuggling_cl_te.toml"
 li_invariant = "single parser rejects duplicate Content-Length"
+li_done = false
+
+[[mitigation]]
+id = "slowloris_header_timeout"
+notes = "client_header_timeout / slow header read"
 exploit = "exploits/slowloris.toml"
+li_invariant = "header read bounded by timeout; attack conns closed"
+li_done = false
+
+[[mitigation]]
+id = "oversized_request_line"
+notes = "large_client_header_buffers / request line limit"
+exploit = "exploits/oversized_request_line.toml"
+li_invariant = "request line length <= configured max"
+li_done = false
+
+[[mitigation]]
+id = "oversized_headers"
+notes = "total header size limits"
+exploit = "exploits/oversized_headers.toml"
+li_invariant = "total header bytes <= configured max"
+li_done = false
+
+[[mitigation]]
+id = "chunked_encoding_abuse"
+notes = "invalid chunked encoding"
+exploit = "exploits/chunked_encoding_abuse.toml"
+li_invariant = "chunk decoder rejects malformed bodies"
+li_done = false
+
+[[mitigation]]
+id = "request_smuggling_te_cl"
+notes = "TE.CL smuggling"
+exploit = "exploits/request_smuggling_te_cl.toml"
+li_invariant = "reject ambiguous transfer-encoding + content-length"
+li_done = false
+
+[[mitigation]]
+id = "path_traversal_encoded"
+notes = "static alias / encoded path traversal"
+exploit = "exploits/path_traversal_encoded.toml"
+li_invariant = "normalized path stays under static root"
+li_done = false
+
+[[mitigation]]
+id = "host_header_poison"
+notes = "Host header validation on reverse proxy"
+exploit = "exploits/host_header_poison.toml"
+li_invariant = "Host allowlist enforced on public listeners"
+li_done = false
+
+[[mitigation]]
+id = "connection_flood"
+notes = "connection limits / worker exhaustion"
+exploit = "exploits/connection_flood.toml"
+li_invariant = "connection count bounded per worker"
+li_done = false
+
+[[mitigation]]
+id = "proxy_ssrf_header"
+notes = "forwarding dangerous headers to upstream"
+exploit = "exploits/proxy_ssrf_header.toml"
+li_invariant = "hop-by-hop and sensitive headers stripped"
+li_done = false
+
+[[mitigation]]
+id = "rng_constant_bytes"
+notes = "TLS/RNG must not use deterministic bytes in prod"
+exploit = "exploits/rng_constant_bytes.toml"
+li_invariant = "OsCsprng for TLS nonces/keys in production profile"
+li_done = false
+
+[[mitigation]]
+id = "leak_openai_key_in_sse"
+notes = "upstream secret in SSE stream"
+exploit = "exploits/leak_openai_key_in_sse.toml"
+li_invariant = "leak_censor scrubs sk- patterns when enabled"
 li_done = false
