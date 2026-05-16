@@ -22,6 +22,12 @@ Every PR to `main` or `dev` runs on **ubuntu-24.04**, **macos-14**, and **window
 ./scripts/ci.sh
 ```
 
+## Packages
+
+**Do not hand-roll `packages/<name>/`.** Use `scripts/li-new-package` from [li-langverse/li](https://github.com/li-langverse/li) when Phase **Pkg** lands ([scaffold plan](https://github.com/li-langverse/li/blob/dev/docs/superpowers/plans/2026-05-16-li-package-scaffold.md)); `li.toml` must match [lip § A3](https://github.com/li-langverse/li/blob/dev/docs/superpowers/plans/2026-05-16-li-package-manager-lip.md). See [docs/package-workflow.md](docs/package-workflow.md).
+
+Existing stubs in this repo will be **re-generated** with that CLI before implementation starts.
+
 ## Implementation status
 
 **Infra-only:** packages contain manifests and docs; Li source implementation waits for language stabilization. See `docs/plan.md`.

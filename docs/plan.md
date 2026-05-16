@@ -104,56 +104,32 @@ Nginx source is **read-only** (what invariants matter). Li makes enforcing them 
 
 ## Self-contained delivery (you publish packages later)
 
-**Rule:** implementation does **not** wait on crates, npm, or unpublished third-party Li packages. We **write every dependency ourselves** in this repo, split into **publish-ready packages** when boundaries are clear. You publish them to a registry **later**; until then everything builds with **path / workspace deps** only.
+**Rule:** implementation does **not** wait on crates, npm, or unpublished third-party Li packages. We **write every dependency ourselves**, split into publishable packages, and publish to a registry **later**; until **lip** (phase 8b+), use **path / workspace** deps only.
 
+### Package creation — master plan (do not hand-roll)
 
-| Do                                                                       | Don't                                     |
-| ------------------------------------------------------------------------ | ----------------------------------------- |
-| Create `packages/<name>/` with `li.toml` (name, version, `path` deps)    | Depend on “soon” external Li packages     |
-| Implement `std/`* shims inside packages if compiler stdlib is still thin | Stall M1 on HACL*/Fiat/npm crypto drops   |
-| Vendor **read-only** oracles (nginx submodule, test vectors)             | Treat vendored code as Li modules to ship |
-| Add `PUBLISH.md` per package (name, version, license, what it exports)   | Block CI on registry upload               |
+Follow **[Phase Pkg — package scaffold](https://github.com/li-langverse/li/blob/dev/docs/superpowers/plans/2026-05-16-li-package-scaffold.md)** and canonical **`li.toml` in [lip plan § A3](https://github.com/li-langverse/li/blob/dev/docs/superpowers/plans/2026-05-16-li-package-manager-lip.md)**. Never invent a second manifest format.
 
+| Step | Tool | When |
+| ---- | ---- | ---- |
+| Create package tree | `./scripts/li-new-package <name> --kind library\|binary --workspace packages` | **Pkg** (li compiler repo) |
+| Init / lock (later) | `lip init` / `lip install` | **8b+** |
+| Org numerics | `li-new-package` in **li-langverse/li-math** | When split from lis |
 
-**Default package split** (adjust during execution; each is a separate publish unit):
+**This repo:** current `packages/li-*` stubs are pre-Pkg — **re-scaffold** with `li-new-package` before implementation. See [package-workflow.md](package-workflow.md).
 
-```text
-packages/
-  li-bytes/          # Reader/Writer, stringview (if not in compiler std yet)
-  li-net/            # reactor, TCP, DNS, raises Net
-  li-rng/            # Prng, PrngRng, RngSource, SimRng, OsCsprng + OsRngUniform seam
-  li-prob/           # prob_ensures MC discharge, collision estimators, Lean lemmas
-  li-crypto/         # ChaCha/Poly1305/X25519/SHA — depends on li-rng for DRBG interface
-  li-tls/            # TLS 1.3 + record layer; depends on li-crypto
-  li-acme/           # ACME client (HTTP-01); depends on li-tls + li-net
-  li-log/            # logging engine (rotation, sinks, redaction) — no spdlog/npm deps
-  li-schema/         # migration/OpenAPI → SchemaCatalog → JSONPath deny_paths
-  li-http/           # parser, router, config desugar+validate, proxy, leak_censor
-  li-httpd/          # binary: CLI setup, setup-tls, setup-censor, validate-config, explain-config
-benchmarks/tier5_http/   # harness stays in main repo (Python OK, mirrors tier2 pattern)
+```bash
+./scripts/li-new-package li-httpd --kind binary --workspace packages --out ./packages
 ```
 
-`**li.toml` (per package, sketch):**
+**Standard layout:** `li.toml` (§ A3), `src/lib.li` or `src/main.li`, `li-tests/manifest.toml`, `PUBLISH.md`. Workspace: `[workspace].members` in `packages/li.toml`.
 
-```toml
-[package]
-name = "li-http"
-version = "0.1.0"
-license = "Apache-2.0"
+**Default packages:** `li-bytes`, `li-net`, `li-rng`, `li-prob`, `li-crypto`, `li-tls`, `li-acme`, `li-schema`, `li-log`, `li-http`, `li-httpd` (binary).
 
-[dependencies]
-li-net = { path = "../li-net" }
-li-tls = { path = "../li-tls", optional = true }
-
-[workspace]
-members = ["../li-net", "../li-crypto", ...]
-```
-
-Root `packages/li-httpd/li.toml` is the **integration root** for `lic build` during development. Publishing = bump version + push each `packages/<name>` (or monorepo tags); **no code changes** required beyond replacing `path` with registry coords when you choose.
-
-**Harness / tooling:** write `bench_http.py`, `exploit_http.py`, `audit_nginx_src.py` in-repo (same as existing `benchmarks/harness/`). No dependency on unpublished PyPI packages beyond what the main Li repo already uses.
-
-**Crypto note:** prefer **hand-written Li in `li-crypto`** with RFC test vectors and Lean specs; optional later **proved `extern` wrappers** to HACL*/Fiat are a separate publishable `li-crypto-hacl` package, not a prerequisite for M1.
+| Do | Don't |
+| -- | ----- |
+| `li-new-package` + lip § A3 | Hand-roll `packages/` trees |
+| Path deps until **lip** registry policy | Early `lip install` without 8a+8c+8e |
 
 ---
 

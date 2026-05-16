@@ -27,6 +27,7 @@ git checkout dev
 - [docs/index.md](docs/index.md) — overview
 - [docs/plan.md](docs/plan.md) — full design
 - [docs/packages/](docs/packages/) — per-package function catalogs
+- [docs/package-workflow.md](docs/package-workflow.md) — `li-new-package` / lip § A3 (required)
 - [docs/org-packages.md](docs/org-packages.md) — org repos (`li-math`, etc.)
 
 ## License

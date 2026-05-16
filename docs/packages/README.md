@@ -2,6 +2,8 @@
 
 Planned public surface per package (implementation follows Li compiler stabilization).
 
+**Create or change packages only via [`li-new-package`](../../package-workflow.md)** (master plan Pkg) — not by copying these directories by hand.
+
 | Package | Doc |
 |---------|-----|
 | [li-httpd](li-httpd.md) | Binary, workers, setup commands |

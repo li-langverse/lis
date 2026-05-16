@@ -18,6 +18,7 @@
 | [ci.md](ci.md) | CI matrix and local runs |
 | [cli.md](cli.md) | `li-httpd` commands (planned) |
 | [packages/](packages/) | Per-package API catalogs |
+| [package-workflow.md](package-workflow.md) | `li-new-package` / lip § A3 (required) |
 | [org-packages.md](org-packages.md) | li-langverse org repos (e.g. li-math) |
 
 ## Repository
