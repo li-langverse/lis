@@ -1,0 +1,5 @@
+[[mitigation]]
+id = "duplicate_content_length"
+li_invariant = "single parser rejects duplicate Content-Length"
+exploit = "exploits/slowloris.toml"
+li_done = false

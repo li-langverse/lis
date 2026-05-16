@@ -1,0 +1,8 @@
+[package]
+name = "li-bytes"
+version = "0.0.0-infra"
+license = "GPL-3.0-or-later"
+description = "Infrastructure scaffold — implementation pending (Li language stabilizing)."
+
+[package.metadata]
+status = "planned"

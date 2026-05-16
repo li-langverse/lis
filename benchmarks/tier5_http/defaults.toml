@@ -1,0 +1,10 @@
+[fixtures]
+static_root = "fixtures/static"
+static_file = "index.html"
+
+[tools]
+wrk = "wrk"
+
+[load]
+warmup_sec = 30
+runs = 5

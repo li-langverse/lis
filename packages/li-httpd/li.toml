@@ -1,0 +1,13 @@
+[package]
+name = "li-httpd"
+version = "0.0.0-infra"
+license = "GPL-3.0-or-later"
+description = "li-httpd gateway binary (not built in infra-only phase)."
+
+[dependencies]
+li-http = { path = "../li-http" }
+li-net = { path = "../li-net" }
+li-log = { path = "../li-log" }
+
+[workspace]
+members = ["../li-http", "../li-net", "../li-log"]

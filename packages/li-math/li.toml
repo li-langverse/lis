@@ -1,0 +1,8 @@
+[package]
+name = "li-math"
+version = "0.0.0-infra"
+license = "GPL-3.0-or-later"
+description = "Proved numerics for Li (optional; may publish as li-langverse/li-math)"
+
+[dependencies]
+# li-bytes = { path = "../li-bytes" }  # when implementation starts

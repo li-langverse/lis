@@ -1,0 +1,11 @@
+[default]
+include = ["static_small"]
+timing = false
+
+[profiles.ci]
+include = ["static_small"]
+timing = false
+
+[profiles.nightly]
+include = ["static_small"]
+timing = true

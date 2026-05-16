@@ -1,0 +1,16 @@
+name = "static_small"
+
+[server]
+listen = ":8080"
+workers = 1
+
+[verify]
+requests = [
+  { method = "GET", path = "/", expect_status = 200 },
+]
+
+[load]
+tool = "wrk"
+duration_sec = 10
+connections = 4
+threads = 2

@@ -1,0 +1,14 @@
+# Optional: remind that dev should merge to main via PR
+name: Branch policy
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches: [main]
+
+jobs:
+  note:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          echo "Merge dev -> main via PR after CI green on all three OSes."
