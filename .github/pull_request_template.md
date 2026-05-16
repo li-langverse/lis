@@ -1,5 +1,11 @@
 ## Summary
 
+## Release notes (required)
+
+Policy: https://github.com/li-langverse/roadmap/blob/main/docs/ecosystem/release-notes.md
+
+- [ ] **CHANGELOG.md** + `docs/release-notes/YYYY-MM-DD-<slug>.md` (**Agent continuation**, **Not changed**)
+
 ## Engineering gates (mandatory)
 
 - [ ] **Functionality** — tests / harness green; spec or REQ ids cited
