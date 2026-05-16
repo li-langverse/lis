@@ -1,0 +1,30 @@
+# Copy to .github/workflows/issue-feature-planning.yml in each li-langverse code repo.
+# Requires scripts/post-issue-planning-comment.py (from benchmarks or agent-kit scripts bundle).
+
+name: Issue feature planning
+
+on:
+  issues:
+    types: [opened, labeled, reopened]
+
+permissions:
+  issues: write
+
+jobs:
+  planning-comment:
+    if: github.event.issue.pull_request == null
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: li-langverse/benchmarks
+          path: _agent-scripts
+          sparse-checkout: |
+            scripts/post-issue-planning-comment.py
+      - name: Post planning checklist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python3 _agent-scripts/scripts/post-issue-planning-comment.py
