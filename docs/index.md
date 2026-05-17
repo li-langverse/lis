@@ -14,6 +14,9 @@
 | Doc | Content |
 |-----|---------|
 | [plan.md](plan.md) | Full implementation plan |
+| [lic: httpd plan](https://github.com/li-langverse/lic/blob/main/docs/superpowers/plans/2026-05-16-li-httpd-plan.md) | Normative product plan |
+| [lic: master plan](https://github.com/li-langverse/lic/blob/main/docs/superpowers/plans/2026-05-14-li-master-plan.md) | PH tracker |
+| [lic: provability gaps](https://github.com/li-langverse/lic/blob/main/docs/verification/provability-gaps.md) | Honest **G-*** register |
 | [architecture.md](architecture.md) | Package graph |
 | [ci.md](ci.md) | CI matrix and local runs |
 | [cli.md](cli.md) | `li-httpd` commands (planned) |
