@@ -14,7 +14,7 @@ Use when an issue asks for new capability and **no** `plan-approved` / `has-plan
 
 | Doc | URL |
 |-----|-----|
-| Vision layers | [vision-and-roadmap.md](https://github.com/li-langverse/roadmap/blob/main/docs/ecosystem/vision-and-roadmap.md) |
+| Vision layers | [vision-and-roadmap.md](https://github.com/li-langverse/roadmap/blob/main/docs/ecosystem/vision-and-roadmap.md) — north star: HPC, scientific computing, AI |
 | Engineering gates | [engineering-standards.md](https://github.com/li-langverse/roadmap/blob/main/docs/ecosystem/engineering-standards.md) |
 | Agent coordination | [agent-coordination.md](https://github.com/li-langverse/roadmap/blob/main/docs/ecosystem/agent-coordination.md) |
 | Master plan + PH tracker | [master plan](https://github.com/li-langverse/lic/blob/main/docs/superpowers/plans/2026-05-14-li-master-plan.md) |

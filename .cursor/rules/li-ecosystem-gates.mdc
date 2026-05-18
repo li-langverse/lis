@@ -10,7 +10,7 @@ Agents **must** follow these before and during work. Style and structure are fle
 ## Read order (start of session)
 
 1. `../roadmap/docs/ecosystem/engineering-standards.md` (or sibling `roadmap/` checkout)
-2. `../roadmap/docs/ecosystem/vision-and-roadmap.md`
+2. `../roadmap/docs/ecosystem/vision-and-roadmap.md` — **north star:** HPC + scientific computing + AI
 3. `../roadmap/docs/ecosystem/agent-coordination.md` — `.li-agent-coord.json`, claims
 4. `docs/superpowers/plans/2026-05-14-li-master-plan.md` in **`lic`** — current **PH-** phase
 5. [Benchmarks dashboard](https://li-langverse.github.io/benchmarks/) — perf status
