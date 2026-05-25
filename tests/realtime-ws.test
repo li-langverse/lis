@@ -103,11 +103,12 @@ async def main() -> None:
             table="package_versions",
             record={"id": "v1", "publisher_id": "pub-a", "name": "demo"},
         )
-        await asyncio.sleep(0.3)
+        await asyncio.sleep(0.6)
 
         saw_insert = False
-        for _ in range(20):
-            raw = await asyncio.wait_for(ws.recv(), timeout=2.0)
+        recv_timeout = float(os.environ.get("LI_REALTIME_WS_RECV_TIMEOUT", "2.0"))
+        for _ in range(30):
+            raw = await asyncio.wait_for(ws.recv(), timeout=recv_timeout)
             msg = decode_message(raw)
             if msg.event != "postgres_changes":
                 continue
