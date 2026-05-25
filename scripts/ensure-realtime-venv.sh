@@ -4,7 +4,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VENV="${ROOT}/.venv-realtime"
 if [[ -x "${VENV}/bin/python" ]] && "${VENV}/bin/python" -c "import websockets" 2>/dev/null; then
-  exit 0
+  if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    exit 0
+  fi
+  return 0
 fi
 python3 -m venv "$VENV"
 "${VENV}/bin/pip" install -q websockets

@@ -7,7 +7,7 @@
 | Surface | Default | Profile |
 |---------|---------|---------|
 | WebSocket | `ws://127.0.0.1:54323/realtime/v1/websocket?apikey=<jwt>` | `stack-full` |
-| Changefeed stub | `$LI_DATA_DIR/wal.changefeed.jsonl` | all realtime profiles |
+| Changefeed | Native `lidb_changefeed_poll` or `$LI_DATA_DIR/wal.changefeed.jsonl` | all realtime profiles |
 
 Start manually:
 
@@ -55,7 +55,26 @@ Server `postgres_changes` payload matches Supabase `data` + `ids` fields (see pr
 
 ## Changefeed source interface
 
-Until **lidb** exposes `subscribe_wal()` to lis in-process, the supervisor polls a JSONL stub (same shape as `lidb::Changefeed::poll_json_line`):
+**Default:** `ChangefeedSource` calls `lidb_changefeed_poll` via ctypes when `liblidb_changefeed` is on `LD_LIBRARY_PATH` / `LIDB_CHANGEFEED_LIB`, or via `scripts/lidb_changefeed_poll_once.py` when `LI_CHANGEFEED_NATIVE=subprocess`.
+
+| Env | Effect |
+|-----|--------|
+| `LI_CHANGEFEED_NATIVE=0` | JSONL-only (`wal.changefeed.jsonl` + mock file) |
+| `LI_CHANGEFEED_NATIVE=subprocess` | One-shot poll helper per loop |
+| `LIDB_CHANGEFEED_LIB` | Path to `liblidb_changefeed.{dylib,so}` |
+| `LIDB_BUILD_DIR` | Prefer this lidb cmake build dir for lib discovery |
+
+**Dependency:** [li-langverse/lidb#11](https://github.com/li-langverse/lidb/pull/11) (`lidb_changefeed_c.h`). Do not merge this lis PR until #11 is on lidb `main` and the shared library is built (`scripts/changefeed_smoke.sh`).
+
+Native poll JSON (from `lidb::Changefeed::event_to_json`):
+
+```json
+{"lsn":2,"table":"package_versions","op":"insert","payload_bytes":0}
+```
+
+lis maps that to `WalChangefeedEvent` (`record` may be `{}` until heap row materialization lands).
+
+Full-row JSONL (tests / ops) still supported:
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -68,23 +87,11 @@ Until **lidb** exposes `subscribe_wal()` to lis in-process, the supervisor polls
 
 Paths:
 
-- **Production path (future):** lidb WAL fan-out → lis embed adapter → `ChangefeedSource` (no file poll).
-- **Current stub:** poll `$LI_DATA_DIR/wal.changefeed.jsonl` written by lidb embed or ops tooling.
-- **Tests / dev:** append to `wal.changefeed.mock.jsonl` or call `ChangefeedSource.push_mock()` from Python.
+- **Native:** `lidb_changefeed_open(LI_DATA_DIR)` in the poll thread (`routes/realtime/lidb_native.py`).
+- **Fallback:** `$LI_DATA_DIR/wal.changefeed.jsonl` and `wal.changefeed.mock.jsonl`.
+- **Tests / dev:** `push_mock()` or `native_insert()` when the library is linked.
 
-Planned lidb C++ API (see `lidb/engine/include/lidb/changefeed.hpp`):
-
-```cpp
-SubscriptionId subscribe(std::string_view table, Callback callback);
-void on_wal_append(uint64_t lsn, ChangefeedOp op, std::string_view table, const std::vector<std::byte>& payload);
-```
-
-lis will replace file poll with:
-
-```python
-# future (pseudo)
-lidb.changefeed.subscribe_wal(data_dir, on_event=source.ingest_native)
-```
+See `lidb/docs/changefeed.md` for Unix socket fan-out (`lidb_changefeed_serve_unix`).
 
 ## JWT authentication
 

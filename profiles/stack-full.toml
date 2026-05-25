@@ -29,7 +29,7 @@ id = "realtime"
 package = "li-realtime"
 bundle = "lis"
 status = "stub"
-notes = "Phoenix v1.0.0 WS; changefeed poll wal.changefeed.jsonl until lidb subscribe_wal"
+notes = "Phoenix v1.0.0 WS; native lidb_changefeed_poll with JSONL fallback (lidb #11)"
 
 [dependencies]
 wp_n3_realtime = "feat/ph-db-realtime-changefeed"

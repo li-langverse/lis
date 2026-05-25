@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Integration: Realtime WebSocket phx_join + postgres_changes (mock changefeed).
+# Integration: Realtime WebSocket phx_join + postgres_changes (mock + optional native lidb).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -11,11 +11,12 @@ PY="${ROOT}/.venv-realtime/bin/python"
 
 export LI_DATA_DIR="${TMPDIR:-/tmp}/lis-realtime-ws-$$"
 export LI_REALTIME_QUIET=1
+export LI_CHANGEFEED_NATIVE=0
 export PYTHONPATH="$ROOT"
 mkdir -p "$LI_DATA_DIR"
 rm -f "$LI_DATA_DIR"/wal.changefeed.mock.jsonl "$LI_DATA_DIR"/wal.changefeed.jsonl
 
-LI_REALTIME_PORT="$(python3 -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1]);s.close()')"
+export LI_REALTIME_PORT="$(python3 -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1]);s.close()')"
 
 SERVER_PID=""
 cleanup() {
@@ -29,15 +30,8 @@ trap cleanup RETURN
 
 "$PY" routes/realtime/server.py --port "$LI_REALTIME_PORT" &
 SERVER_PID=$!
-for _ in $(seq 1 40); do
-  if "$PY" -c "import socket;s=socket.socket();s.connect(('127.0.0.1',$LI_REALTIME_PORT));s.close()" 2>/dev/null; then
-    sleep 0.2
-    break
-  fi
-  sleep 0.1
-done
+sleep 1
 
-export LI_REALTIME_PORT
 export LIS_ROOT="$ROOT"
 "$PY" - <<'PY'
 import asyncio
@@ -168,5 +162,54 @@ async def main() -> None:
 
 asyncio.run(main())
 PY
+
+# Native lidb changefeed poll (requires liblidb_changefeed from li-langverse/lidb #11)
+if [[ -z "${LI_CHANGEFEED_NATIVE:-}" || "${LI_CHANGEFEED_NATIVE}" != "0" ]]; then
+  for candidate in \
+    "${LIDB_CHANGEFEED_LIB:-}" \
+    "$ROOT/../lidb/build/smoke/liblidb_changefeed.dylib" \
+    "$ROOT/../lidb/build/smoke/liblidb_changefeed.so" \
+    "$ROOT/../lidb/build/cf-smoke/liblidb_changefeed.dylib" \
+    "$ROOT/../lidb/build/cf-smoke/liblidb_changefeed.so"; do
+    if [[ -n "$candidate" && -f "$candidate" ]]; then
+      export LIDB_CHANGEFEED_LIB="$candidate"
+      break
+    fi
+  done
+fi
+
+if [[ -n "${LIDB_CHANGEFEED_LIB:-}" && -f "${LIDB_CHANGEFEED_LIB}" ]]; then
+  export LI_CHANGEFEED_NATIVE="${LI_CHANGEFEED_NATIVE:-1}"
+  NATIVE_DATA="${TMPDIR:-/tmp}/lis-realtime-native-$$"
+  mkdir -p "$NATIVE_DATA"
+  export NATIVE_DATA
+  export LIS_ROOT="$ROOT"
+  "$PY" - <<'PY'
+import os
+import sys
+from pathlib import Path
+
+ROOT = Path(os.environ["LIS_ROOT"])
+sys.path.insert(0, str(ROOT))
+
+from routes.realtime.changefeed import ChangefeedSource
+
+data = Path(os.environ["NATIVE_DATA"])
+feed = ChangefeedSource(data)
+if feed.native_mode == "off":
+    raise SystemExit("expected native changefeed mode")
+lsn = feed.native_insert("package_versions")
+if lsn <= 0:
+    raise SystemExit("native_insert failed")
+events = feed.poll_once()
+if not any(e.table == "package_versions" and e.op == "insert" for e in events):
+    raise SystemExit("native poll did not return package_versions insert")
+feed.stop_polling()
+print(f"realtime-ws native ({feed.native_mode}): OK")
+PY
+  rm -rf "$NATIVE_DATA"
+else
+  echo "realtime-ws native: SKIP (no liblidb_changefeed; merge lidb #11 and build)"
+fi
 
 echo "realtime-ws integration: OK"
