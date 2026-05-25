@@ -131,6 +131,11 @@ class ChangefeedSource:
         self._mock_path.parent.mkdir(parents=True, exist_ok=True)
         with self._mock_path.open("a", encoding="utf-8") as fh:
             fh.write(line + "\n")
+            fh.flush()
+            try:
+                os.fsync(fh.fileno())
+            except OSError:
+                pass
         self._dispatch(event)
         return event
 

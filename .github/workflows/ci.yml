@@ -35,6 +35,9 @@ jobs:
         run: pip install pytest
 
       - name: Infra + security + load (stub harness)
+        env:
+          LI_CHANGEFEED_NATIVE: "0"
+          LI_REALTIME_WS_RECV_TIMEOUT: "5.0"
         run: ./scripts/ci.sh
 
   merge-gate:

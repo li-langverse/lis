@@ -12,6 +12,7 @@ PY="${ROOT}/.venv-realtime/bin/python"
 export LI_DATA_DIR="${TMPDIR:-/tmp}/lis-realtime-ws-$$"
 export LI_REALTIME_QUIET=1
 export LI_CHANGEFEED_NATIVE=0
+export LI_REALTIME_WS_RECV_TIMEOUT="${LI_REALTIME_WS_RECV_TIMEOUT:-5.0}"
 export PYTHONPATH="$ROOT"
 mkdir -p "$LI_DATA_DIR"
 rm -f "$LI_DATA_DIR"/wal.changefeed.mock.jsonl "$LI_DATA_DIR"/wal.changefeed.jsonl
@@ -28,7 +29,8 @@ cleanup() {
 }
 trap cleanup RETURN
 
-"$PY" routes/realtime/server.py --port "$LI_REALTIME_PORT" &
+LI_CHANGEFEED_NATIVE=0 LI_DATA_DIR="$LI_DATA_DIR" \
+  "$PY" routes/realtime/server.py --port "$LI_REALTIME_PORT" &
 SERVER_PID=$!
 sleep 1
 
@@ -141,8 +143,19 @@ async def main() -> None:
                 join_ref="2",
             )
         )
+        saw_reply_b = False
+        saw_system_b = False
         for _ in range(10):
-            await asyncio.wait_for(ws.recv(), timeout=2.0)
+            raw = await asyncio.wait_for(ws.recv(), timeout=2.0)
+            msg = decode_message(raw)
+            if msg.event == "phx_reply" and msg.payload.get("status") == "ok":
+                saw_reply_b = True
+            if msg.event == "system":
+                saw_system_b = True
+            if saw_reply_b and saw_system_b:
+                break
+        if not (saw_reply_b and saw_system_b):
+            raise SystemExit("missing phx_reply or system after RLS join")
         feed.push_mock(
             table="package_versions",
             record={"id": "v2", "publisher_id": "pub-a", "name": "hidden"},
@@ -179,7 +192,9 @@ if [[ -z "${LI_CHANGEFEED_NATIVE:-}" || "${LI_CHANGEFEED_NATIVE}" != "0" ]]; the
   done
 fi
 
-if [[ -n "${LIDB_CHANGEFEED_LIB:-}" && -f "${LIDB_CHANGEFEED_LIB}" ]]; then
+if [[ "${LI_CHANGEFEED_NATIVE:-}" == "0" ]]; then
+  echo "realtime-ws native: SKIP (LI_CHANGEFEED_NATIVE=0)"
+elif [[ -n "${LIDB_CHANGEFEED_LIB:-}" && -f "${LIDB_CHANGEFEED_LIB}" ]]; then
   export LI_CHANGEFEED_NATIVE="${LI_CHANGEFEED_NATIVE:-1}"
   NATIVE_DATA="${TMPDIR:-/tmp}/lis-realtime-native-$$"
   mkdir -p "$NATIVE_DATA"
