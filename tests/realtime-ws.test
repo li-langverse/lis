@@ -7,7 +7,15 @@ cd "$ROOT"
 
 # shellcheck source=/dev/null
 source "$ROOT/scripts/ensure-realtime-venv.sh"
-PY="${ROOT}/.venv-realtime/bin/python"
+VENV="${ROOT}/.venv-realtime"
+if [[ -x "${VENV}/bin/python" ]]; then
+  PY="${VENV}/bin/python"
+elif [[ -x "${VENV}/Scripts/python.exe" ]]; then
+  PY="${VENV}/Scripts/python.exe"
+else
+  echo "realtime-ws: missing venv python under ${VENV}" >&2
+  exit 1
+fi
 
 export LI_DATA_DIR="${TMPDIR:-/tmp}/lis-realtime-ws-$$"
 export LI_REALTIME_QUIET=1
