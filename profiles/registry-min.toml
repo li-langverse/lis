@@ -14,6 +14,7 @@ lidb_embedded = true
 registry_routes = "routes/registry"
 registry_handlers = "routes/registry/handlers.py"
 registry_server = "routes/registry/server.py"
+registry_store = "routes/registry/store.py"
 registry_mock_store = "routes/registry/liorm_mock.py"
 openapi_spec = "openapi/registry-v1.yaml"
 
