@@ -1,0 +1,18 @@
+name = "keepalive_pipelining"
+
+[server]
+listen = ":8081"
+workers = 1
+keepalive = true
+
+[verify]
+requests = [
+  { method = "GET", path = "/", expect_status = 200 },
+]
+
+[load]
+tool = "wrk"
+duration_sec = 10
+connections = 8
+threads = 2
+pipeline = 8
