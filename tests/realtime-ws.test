@@ -32,7 +32,19 @@ trap cleanup RETURN
 LI_CHANGEFEED_NATIVE=0 LI_DATA_DIR="$LI_DATA_DIR" \
   "$PY" routes/realtime/server.py --port "$LI_REALTIME_PORT" &
 SERVER_PID=$!
-sleep 1
+if ! "$PY" -c "import socket,sys,time
+port=int(sys.argv[1])
+for _ in range(40):
+    try:
+        s=socket.create_connection(('127.0.0.1', port), timeout=0.25)
+        s.close()
+        sys.exit(0)
+    except OSError:
+        time.sleep(0.25)
+sys.exit(1)" "$LI_REALTIME_PORT"; then
+  echo "realtime-ws: server did not listen on port ${LI_REALTIME_PORT}" >&2
+  exit 1
+fi
 
 export LIS_ROOT="$ROOT"
 "$PY" - <<'PY'
