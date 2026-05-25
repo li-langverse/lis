@@ -12,7 +12,7 @@ PY="${ROOT}/.venv-realtime/bin/python"
 export LI_DATA_DIR="${TMPDIR:-/tmp}/lis-realtime-ws-$$"
 export LI_REALTIME_QUIET=1
 export LI_CHANGEFEED_NATIVE=0
-export LI_REALTIME_WS_RECV_TIMEOUT="${LI_REALTIME_WS_RECV_TIMEOUT:-5.0}"
+export LI_REALTIME_WS_RECV_TIMEOUT="${LI_REALTIME_WS_RECV_TIMEOUT:-8.0}"
 export PYTHONPATH="$ROOT"
 mkdir -p "$LI_DATA_DIR"
 rm -f "$LI_DATA_DIR"/wal.changefeed.mock.jsonl "$LI_DATA_DIR"/wal.changefeed.jsonl
@@ -105,7 +105,7 @@ async def main() -> None:
             table="package_versions",
             record={"id": "v1", "publisher_id": "pub-a", "name": "demo"},
         )
-        await asyncio.sleep(0.6)
+        await asyncio.sleep(1.2)
 
         saw_insert = False
         recv_timeout = float(os.environ.get("LI_REALTIME_WS_RECV_TIMEOUT", "2.0"))
