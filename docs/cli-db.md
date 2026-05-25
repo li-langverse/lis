@@ -43,3 +43,5 @@ Default ports (Supabase-local parity for control-plane dev):
 - **Separate packages:** OAuth, Studio, Storage, Realtime remain opt-in per [profiles/registry-min.toml](../profiles/registry-min.toml).
 
 See [architecture.md](architecture.md#li-data-platform-ph-db) for the bundle diagram.
+
+**Production host:** [production-registry.md](production-registry.md) — DNS, TLS via li-httpd, env template, `registry-min` on a VM.
