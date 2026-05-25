@@ -7,7 +7,8 @@
     "beforeShellExecution": [
       { "command": ".cursor/hooks/guard-destructive-git.sh" },
       { "command": ".cursor/hooks/guard-secrets.sh" },
-      { "command": ".cursor/hooks/guard-direct-push.sh" }
+      { "command": ".cursor/hooks/guard-direct-push.sh" },
+      { "command": ".cursor/hooks/guard-pr-merge.sh" }
     ],
     "afterFileEdit": [
       {

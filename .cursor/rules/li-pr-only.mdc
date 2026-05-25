@@ -5,7 +5,7 @@ alwaysApply: true
 
 # PR-only workflow (mandatory)
 
-Agents **never** push directly to protected branches (`main`, `dev`, `master`).
+Agents **never** push directly to protected branches (`main`, `dev`, `master`). GitHub ruleset **Li: protected branches** enforces this org-wide (see `roadmap/scripts/apply-org-branch-protection.sh`).
 
 ## Required flow
 
