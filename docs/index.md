@@ -17,9 +17,10 @@
 | [lic: httpd plan](https://github.com/li-langverse/lic/blob/main/docs/superpowers/plans/2026-05-16-li-httpd-plan.md) | Normative product plan |
 | [lic: master plan](https://github.com/li-langverse/lic/blob/main/docs/superpowers/plans/2026-05-14-li-master-plan.md) | PH tracker |
 | [lic: provability gaps](https://github.com/li-langverse/lic/blob/main/docs/verification/provability-gaps.md) | Honest **G-*** register |
-| [architecture.md](architecture.md) | Package graph |
+| [architecture.md](architecture.md) | Package graph + PH-DB bundle diagram |
 | [ci.md](ci.md) | CI matrix and local runs |
 | [cli.md](cli.md) | `li-httpd` commands (planned) |
+| [cli-db.md](cli-db.md) | `lis db` supervisor (PH-DB-3 stub) |
 | [packages/](packages/) | Per-package API catalogs |
 | [package-workflow.md](package-workflow.md) | `li-new-package` / lip § A3 (required) |
 | [org-packages.md](org-packages.md) | li-langverse org repos (e.g. li-math) |

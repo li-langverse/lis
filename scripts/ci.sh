@@ -9,6 +9,8 @@ chmod +x scripts/*.sh li-tests/*.sh 2>/dev/null || true
 chmod +x ./li-tests/run_httpd_config.sh 2>/dev/null || true
 ./li-tests/run_httpd_config.sh
 ./li-tests/run_all.sh
+chmod +x ./li-tests/db/run_cli_stub.sh 2>/dev/null || true
+./li-tests/db/run_cli_stub.sh
 ./li-tests/run_security.sh
 ./li-tests/run_load.sh
 echo "== lis CI OK =="

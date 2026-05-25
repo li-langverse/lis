@@ -22,6 +22,19 @@ git checkout dev
 ./scripts/ci.sh
 ```
 
+## Data platform stub (PH-DB-3)
+
+Registry-min bundle supervisor (stubs until [lidb](https://github.com/li-langverse/lidb) WP1):
+
+```bash
+export LI_DATA_DIR=~/.local/share/lis/data
+export LI_PROFILE=registry-min
+./bin/lis db start
+./bin/lis db status
+```
+
+See [docs/cli-db.md](docs/cli-db.md) and [profiles/registry-min.toml](profiles/registry-min.toml).
+
 ## Docs
 
 - [docs/index.md](docs/index.md) — overview

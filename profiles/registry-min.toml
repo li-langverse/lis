@@ -1,0 +1,73 @@
+# registry-min — lean Supabase-shaped bundle for lip registry + domain deploy (PH-DB-3).
+# Supervisor: lis (single process). Engine: lidb embedded in-process (WP1+).
+# Footprint target: ≤256 MiB RSS (see lidb/docs/footprint.md when WP1 lands).
+
+[profile]
+id = "registry-min"
+description = "Package registry MVP: lidb + REST API + migrations + pool + logs. No Studio/OAuth/Storage/Realtime/Edge."
+phase = "PH-DB-3"
+lis_supervisor = true
+lidb_embedded = true
+
+[ports]
+api = 54321   # PostgREST-shaped registry REST (lip OpenAPI)
+db = 54322    # Postgres wire protocol subset (lidb)
+
+[env]
+# Required at runtime (lis db start):
+#   LI_DATA_DIR — persistent data root
+#   LI_PROFILE  — defaults to registry-min
+# Optional overrides:
+#   LI_API_PORT, LI_DB_PORT
+
+[[verticals]]
+id = "database"
+package = "lidb"
+bundle = "in-process"
+status = "stub"
+notes = "WAL/heap/SQL subset; migrations/001_registry.sql (WP1)"
+
+[[verticals]]
+id = "registry_api"
+package = "lip-registry-rest"
+bundle = "lis"
+status = "stub"
+notes = "GET/POST packages per lip registry OpenAPI (WP4)"
+
+[[verticals]]
+id = "migrations"
+package = "lidb-migrate"
+bundle = "lis"
+status = "stub"
+notes = "lis db migrate → lidb embedded migrator"
+
+[[verticals]]
+id = "connection_pool"
+package = "li-pool"
+bundle = "lis"
+status = "stub"
+notes = "Lightweight pool co-located with lidb; not Supavisor-scale"
+
+[[verticals]]
+id = "observability"
+package = "li-log"
+bundle = "lis"
+status = "stub"
+notes = "Structured logs for API + DB; no full Logflare stack"
+
+# Explicitly excluded from registry-min (opt-in packages / later phases):
+# - auth (li-auth) — JWT/email in lis; OAuth → li-auth-oauth (separate)
+# - storage (li-storage)
+# - realtime (li-realtime)
+# - edge_functions (li-edge)
+# - vector (li-vector) — registry v1 may skip embeddings
+# - studio (li-studio)
+# - graphql
+# - cron (li-cron)
+# - vault (li-vault)
+
+[dependencies]
+# Sequenced work packages (do not start bundle runtime without WP1 contract):
+wp1_lidb_scaffold = "feat/ph-db-1-lidb-scaffold"
+wp2_liorm_liq = "feat/ph-db-2-liorm-liq"
+wp4_registry_openapi = "feat/ph-db-4-registry-openapi"
