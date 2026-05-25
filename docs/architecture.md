@@ -60,7 +60,9 @@ flowchart TB
 
 **Packaging:** Core verticals ship in **lidb + lis**. Optional splits (e.g. `li-auth-oauth`) are documented in [profiles/registry-min.toml](../profiles/registry-min.toml).
 
-**PH-DB-3 (this repo):** CLI + profile + diagram only — `lidb` dependency stubbed until WP1.
+**PH-DB-3:** CLI + profile + diagram — `lidb` dependency stubbed until WP1.
+
+**PH-DB-4 (this repo):** `routes/registry/` REST handlers + `openapi/registry-v1.yaml` + mock `liorm` store; real `execute(plan_id)` when WP1–WP2 link.
 
 ## Packages
 

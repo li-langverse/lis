@@ -5,9 +5,17 @@
 [profile]
 id = "registry-min"
 description = "Package registry MVP: lidb + REST API + migrations + pool + logs. No Studio/OAuth/Storage/Realtime/Edge."
-phase = "PH-DB-3"
+phase = "PH-DB-4"
 lis_supervisor = true
 lidb_embedded = true
+
+[modules]
+# Python route stubs until li-httpd + lic link native handlers.
+registry_routes = "routes/registry"
+registry_handlers = "routes/registry/handlers.py"
+registry_server = "routes/registry/server.py"
+registry_mock_store = "routes/registry/liorm_mock.py"
+openapi_spec = "openapi/registry-v1.yaml"
 
 [ports]
 api = 54321   # PostgREST-shaped registry REST (lip OpenAPI)
@@ -32,7 +40,7 @@ id = "registry_api"
 package = "lip-registry-rest"
 bundle = "lis"
 status = "stub"
-notes = "GET/POST packages per lip registry OpenAPI (WP4)"
+notes = "GET/POST /v1/packages* per openapi/registry-v1.yaml (PH-DB-4 routes/registry)"
 
 [[verticals]]
 id = "migrations"
@@ -66,8 +74,15 @@ notes = "Structured logs for API + DB; no full Logflare stack"
 # - cron (li-cron)
 # - vault (li-vault)
 
+[modules.liorm_plans]
+# Registered at lis db start when liorm links (WP2); mock uses same names in liorm_mock.
+list_packages = "registry.list_packages"
+get_version = "registry.get_version"
+publish_version = "registry.publish_version"
+yank_version = "registry.yank_version"
+
 [dependencies]
 # Sequenced work packages (do not start bundle runtime without WP1 contract):
 wp1_lidb_scaffold = "feat/ph-db-1-lidb-scaffold"
 wp2_liorm_liq = "feat/ph-db-2-liorm-liq"
-wp4_registry_openapi = "feat/ph-db-4-registry-openapi"
+wp4_registry_routes = "feat/ph-db-4-registry-routes"

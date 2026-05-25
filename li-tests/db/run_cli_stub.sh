@@ -11,9 +11,9 @@ trap 'rm -rf "$LI_DATA_DIR"' EXIT
 
 ./bin/lis db stop >/dev/null 2>&1 || true
 ./bin/lis db start
-./bin/lis db status | grep -q 'running'
+./bin/lis db status | grep -q 'state:.*running'
 ./bin/lis db migrate --to head
 test -f "$LI_DATA_DIR/.lis-db-migrate-stub"
 ./bin/lis db stop
-./bin/lis db status | grep -q 'stopped'
+./bin/lis db status | grep -q 'state:.*stopped'
 echo "lis db CLI stub: OK"

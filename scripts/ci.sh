@@ -11,6 +11,8 @@ chmod +x ./li-tests/run_httpd_config.sh 2>/dev/null || true
 ./li-tests/run_all.sh
 chmod +x ./li-tests/db/run_cli_stub.sh 2>/dev/null || true
 ./li-tests/db/run_cli_stub.sh
+chmod +x ./tests/registry-api.test 2>/dev/null || true
+./tests/registry-api.test
 ./li-tests/run_security.sh
 ./li-tests/run_load.sh
 echo "== lis CI OK =="
