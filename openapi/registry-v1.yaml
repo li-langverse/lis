@@ -1,0 +1,425 @@
+openapi: 3.0.3
+info:
+  title: Li package registry API
+  version: 1.0.0
+  description: |
+    REST index for **lip** Phase 8d central registry (PH-DB-4).
+    Publish requires the same gates as `lip publish`: `lic build`, `lit test --coverage` (≥80%),
+    `proof_digest`, `tree_digest`, and ed25519 manifest signature (8c).
+  contact:
+    name: li-langverse
+    url: https://github.com/li-langverse/lip
+
+servers:
+  - url: https://registry.li-langverse.example/v1
+    description: Production (placeholder domain — replace at deploy)
+  - url: http://127.0.0.1:54321/v1
+    description: Local **lis** registry-min profile (lis db start)
+
+tags:
+  - name: packages
+    description: Package index and version metadata
+  - name: admin
+    description: Publish and yank (authenticated)
+
+paths:
+  /packages:
+    get:
+      tags: [packages]
+      operationId: listPackages
+      summary: List package versions in the registry index
+      description: |
+        Returns published versions. Yanked versions are omitted unless `include_yanked=true`.
+        Blocklisted packages, publishers, or digests are never returned.
+      parameters:
+        - name: name
+          in: query
+          description: Filter by exact package name or prefix (`foo` matches `foo`, `foo-bar`)
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: include_yanked
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Package version list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackageListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /packages/{name}/{version}:
+    get:
+      tags: [packages]
+      operationId: getPackageVersion
+      summary: Fetch metadata for one package version
+      parameters:
+        - $ref: '#/components/parameters/PackageName'
+        - $ref: '#/components/parameters/PackageVersion'
+      responses:
+        '200':
+          description: Package version metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackageVersion'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '410':
+          description: Version yanked or blocklisted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /packages/{name}/versions:
+    post:
+      tags: [admin]
+      operationId: publishPackageVersion
+      summary: Publish a package version (lip publish — registry mode)
+      description: |
+        Inserts or replaces `package_versions` after verifying publish gates.
+        Request body mirrors `registry/index.json` entries plus optional 8d metadata
+        (`pkg_id`, SPDX, repository URLs, git `source`, CI attestation).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PackageName'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishRequest'
+      responses:
+        '201':
+          description: Version published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Publisher unsigned, blocklisted, or coverage below minimum
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Version already exists with a different tree_digest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /packages/{name}/{version}/yank:
+    post:
+      tags: [admin]
+      operationId: yankPackageVersion
+      summary: Yank a package version (withdraw from default resolution)
+      description: |
+        Records a row in `yanks`. Yanked versions remain addressable for audit but
+        are excluded from `GET /packages` unless `include_yanked=true`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PackageName'
+        - $ref: '#/components/parameters/PackageVersion'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/YankRequest'
+      responses:
+        '200':
+          description: Version yanked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/YankResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Version already yanked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Publisher API token or OIDC JWT (lis registry-min)
+
+  parameters:
+    PackageName:
+      name: name
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[a-z][a-z0-9_-]*$'
+        example: pkg-ok
+    PackageVersion:
+      name: version
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'
+        example: '0.1.0'
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Missing or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Package or version not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    DigestSha256:
+      type: string
+      pattern: '^sha256:[a-f0-9]{64}$'
+      example: sha256:cb77ba3f3295336993fcef7d4194f3dc45312a3c4df723bf29c56c428e184a9b
+
+    GitSource:
+      type: object
+      required: [type, url, tag]
+      properties:
+        type:
+          type: string
+          enum: [git]
+        url:
+          type: string
+          format: uri
+          example: https://github.com/li-langverse/pkg-ok
+        tag:
+          type: string
+          example: v0.1.0
+
+    PackageVersion:
+      type: object
+      required: [name, version, tree_digest, proof_digest, coverage_pct, published_at]
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        pkg_id:
+          type: string
+          description: Traceability ID (e.g. PKG-pkg-ok)
+          example: PKG-pkg-ok
+        tree_digest:
+          $ref: '#/components/schemas/DigestSha256'
+        proof_digest:
+          $ref: '#/components/schemas/DigestSha256'
+        coverage_pct:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+        manifest_signature:
+          type: string
+          description: ed25519 signature over canonical manifest bytes (8c)
+        publisher_key_id:
+          type: string
+        spdx_license:
+          type: string
+          example: Apache-2.0 OR MIT
+        changelog_url:
+          type: string
+          format: uri
+        repository_url:
+          type: string
+          format: uri
+        documentation_url:
+          type: string
+          format: uri
+        source:
+          $ref: '#/components/schemas/GitSource'
+        yanked:
+          type: boolean
+          default: false
+        yank_reason:
+          type: string
+        published_at:
+          type: string
+          format: date-time
+        attestations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Attestation'
+
+    PackageListResponse:
+      type: object
+      required: [packages, total, limit, offset]
+      properties:
+        packages:
+          type: array
+          items:
+            $ref: '#/components/schemas/PackageVersion'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    PublishRequest:
+      type: object
+      required: [version, tree_digest, proof_digest, coverage_pct]
+      properties:
+        version:
+          type: string
+        tree_digest:
+          $ref: '#/components/schemas/DigestSha256'
+        proof_digest:
+          $ref: '#/components/schemas/DigestSha256'
+        coverage_pct:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+          description: From `.lit/coverage_pct.txt` after `lit test --coverage`
+        manifest_signature:
+          type: string
+          format: byte
+          description: ed25519 signature (required for registry install by default)
+        publisher_key_id:
+          type: string
+        pkg_id:
+          type: string
+        spdx_license:
+          type: string
+        changelog_url:
+          type: string
+          format: uri
+        repository_url:
+          type: string
+          format: uri
+        documentation_url:
+          type: string
+          format: uri
+        source:
+          $ref: '#/components/schemas/GitSource'
+        attestation:
+          $ref: '#/components/schemas/AttestationInput'
+
+    PublishResponse:
+      type: object
+      required: [name, version, published_at]
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        published_at:
+          type: string
+          format: date-time
+        index_url:
+          type: string
+          format: uri
+          description: Canonical GET URL for this version
+
+    YankRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          example: proof regression detected in li.lock closure
+
+    YankResponse:
+      type: object
+      required: [name, version, yanked_at]
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        reason:
+          type: string
+        yanked_at:
+          type: string
+          format: date-time
+
+    Attestation:
+      type: object
+      required: [attestation_type, digest, created_at]
+      properties:
+        attestation_type:
+          type: string
+          enum: [ci, manual, repro]
+        digest:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+
+    AttestationInput:
+      type: object
+      required: [attestation_type, digest]
+      properties:
+        attestation_type:
+          type: string
+          enum: [ci, manual, repro]
+        digest:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lis — Li data-platform supervisor (PH-DB-3 stub).
+# lis — Li data-platform supervisor (PH-DB-3/4 stub).
 # Single entrypoint: HTTP gateway (future) + bundled lidb stack (registry-min profile).
 set -euo pipefail
 
@@ -21,8 +21,9 @@ Environment (db subcommands):
   LI_PROFILE    Bundle profile (default: registry-min)
   LI_API_PORT   REST/PostgREST-shaped API (default: 54321)
   LI_DB_PORT    Postgres wire / lidb (default: 54322)
+  LI_REGISTRY_API  Start registry REST on db start (default: 1; set 0 to skip)
 
-PH-DB-3: CLI stubs only — lidb in-process supervisor lands after WP1 (lidb scaffold).
+PH-DB-3/4: CLI + registry REST stub; lidb in-process lands after WP1.
 EOF
 }
 
@@ -61,6 +62,25 @@ lis_db_start() {
     echo $! >"$pid_file"
     echo "lis db: stub supervisor pid $(cat "$pid_file")"
   fi
+  if [[ "${LI_REGISTRY_API:-1}" != "0" ]]; then
+    lis_registry_api_start "$api_port" "$data_dir"
+  fi
+}
+
+lis_registry_api_start() {
+  local api_port="$1"
+  local data_dir="$2"
+  local reg_pid="${data_dir}/lis-registry-api.pid"
+  if [[ -f "$reg_pid" ]] && kill -0 "$(cat "$reg_pid")" 2>/dev/null; then
+    return 0
+  fi
+  export LI_DATA_DIR="$data_dir"
+  export LI_API_PORT="$api_port"
+  export LI_REGISTRY_QUIET=1
+  export PYTHONPATH="${LIS_ROOT}${PYTHONPATH:+:$PYTHONPATH}"
+  python3 "${LIS_ROOT}/routes/registry/server.py" --port "$api_port" &
+  echo $! >"$reg_pid"
+  echo "lis registry API (stub): http://127.0.0.1:${api_port}/v1 (pid $(cat "$reg_pid"))"
 }
 
 lis_db_stop() {
@@ -78,7 +98,12 @@ lis_db_stop() {
   else
     echo "lis db: stale pid file removed"
   fi
-  rm -f "$pid_file" "${data_dir}/.lis-db-stub" "${data_dir}/.lis-db-profile" "${data_dir}/.lis-db-ports"
+  local reg_pid="${data_dir}/lis-registry-api.pid"
+  if [[ -f "$reg_pid" ]] && kill -0 "$(cat "$reg_pid")" 2>/dev/null; then
+    kill "$(cat "$reg_pid")" 2>/dev/null || true
+    echo "lis registry API: stopped pid $(cat "$reg_pid")"
+  fi
+  rm -f "$pid_file" "$reg_pid" "${data_dir}/.lis-db-stub" "${data_dir}/.lis-db-profile" "${data_dir}/.lis-db-ports"
 }
 
 lis_db_status() {
@@ -93,6 +118,12 @@ lis_db_status() {
   echo "api_port:    ${api_port}"
   echo "db_port:     ${db_port}"
   echo "lidb_link:   stub (WP1 pending)"
+  local reg_pid="${data_dir}/lis-registry-api.pid"
+  if [[ -f "$reg_pid" ]] && kill -0 "$(cat "$reg_pid")" 2>/dev/null; then
+    echo "registry_api: running (pid $(cat "$reg_pid"), http://127.0.0.1:${api_port}/v1)"
+  else
+    echo "registry_api: stopped"
+  fi
   if [[ -f "$pid_file" ]] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then
     echo "state:       running (pid $(cat "$pid_file"), stub supervisor)"
   else
@@ -140,7 +171,7 @@ main() {
       esac
       ;;
     -h|--help|help) lis_usage ;;
-    *) echo "lis: unknown command: $1 (only 'db' implemented in PH-DB-3 stub)" >&2; lis_usage; exit 1 ;;
+    *) echo "lis: unknown command: $1 (only 'db' implemented)" >&2; lis_usage; exit 1 ;;
   esac
 }
 

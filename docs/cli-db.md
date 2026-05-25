@@ -1,6 +1,6 @@
 # `lis db` — data platform supervisor (PH-DB-3)
 
-**Status:** Stub — interface contract for the lean **lidb + lis** bundle. Runtime wiring waits on [lidb](https://github.com/li-langverse/lidb) WP1.
+**Status:** Stub — interface contract for the lean **lidb + lis** bundle. **PH-DB-4** adds registry REST on port 54321 (mock store). Engine wiring waits on [lidb](https://github.com/li-langverse/lidb) WP1.
 
 ## Quick start
 
@@ -18,7 +18,7 @@ Default ports (Supabase-local parity for control-plane dev):
 
 | Port | Role |
 |------|------|
-| 54321 | Registry REST / PostgREST-shaped API |
+| 54321 | Registry REST / PostgREST-shaped API (`routes/registry/`, `GET /v1/openapi.yaml`) |
 | 54322 | Postgres wire (lidb) |
 
 ## Profiles

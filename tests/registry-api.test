@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Integration stub: registry REST handlers + mock liorm (PH-DB-4).
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+export LI_DATA_DIR="${TMPDIR:-/tmp}/lis-registry-api-$$"
+export LI_API_PORT="${LI_API_PORT:-$(python3 -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1]);s.close()')}"
+export LI_REGISTRY_QUIET=1
+export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
+
+cleanup() {
+  if [[ -n "${SERVER_PID:-}" ]] && kill -0 "$SERVER_PID" 2>/dev/null; then
+    kill "$SERVER_PID" 2>/dev/null || true
+    wait "$SERVER_PID" 2>/dev/null || true
+  fi
+  rm -rf "$LI_DATA_DIR"
+}
+trap cleanup EXIT
+
+python3 routes/registry/server.py --port "$LI_API_PORT" &
+SERVER_PID=$!
+for _ in $(seq 1 30); do
+  if curl -sf "http://127.0.0.1:${LI_API_PORT}/health" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.1
+done
+
+BASE="http://127.0.0.1:${LI_API_PORT}"
+
+curl -sf "${BASE}/health" | grep -q '"status"'
+curl -sf "${BASE}/health" | grep -q 'ok'
+curl -sf "${BASE}/v1/openapi.yaml" | grep -q 'openapi: 3.0.3'
+curl -sf "${BASE}/v1/packages" | grep -q '"packages"'
+curl -sf "${BASE}/v1/packages/pkg-ok/0.1.0" | grep -q 'pkg-ok'
+
+# publish requires auth
+code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASE}/v1/packages/demo-pkg/versions" \
+  -H 'Content-Type: application/json' \
+  -d '{"version":"1.0.0","tree_digest":"sha256:'$(printf 'c%.0s' {1..64})'","proof_digest":"sha256:'$(printf 'd%.0s' {1..64})'","coverage_pct":90}')
+test "$code" = "401"
+
+code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASE}/v1/packages/demo-pkg/versions" \
+  -H 'Authorization: Bearer test-token' \
+  -H 'Content-Type: application/json' \
+  -d '{"version":"1.0.0","tree_digest":"sha256:'$(printf 'c%.0s' {1..64})'","proof_digest":"sha256:'$(printf 'd%.0s' {1..64})'","coverage_pct":90}')
+test "$code" = "201"
+
+curl -sf "${BASE}/v1/packages?name=demo-pkg" | grep -q '1.0.0'
+
+code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASE}/v1/packages/demo-pkg/1.0.0/yank" \
+  -H 'Authorization: Bearer test-token' \
+  -H 'Content-Type: application/json' \
+  -d '{"reason":"integration test yank"}')
+test "$code" = "200"
+
+curl -sf "${BASE}/v1/packages?name=demo-pkg" | grep -qv '1.0.0'
+
+code=$(curl -s -o /dev/null -w '%{http_code}' "${BASE}/v1/packages/demo-pkg/1.0.0")
+test "$code" = "410"
+
+echo "registry-api integration stub: OK"
