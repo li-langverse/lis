@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+# lis — Li data-platform supervisor (PH-DB-3 stub).
+# Single entrypoint: HTTP gateway (future) + bundled lidb stack (registry-min profile).
+set -euo pipefail
+
+LIS_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+export LIS_ROOT
+
+lis_usage() {
+  cat <<'EOF'
+lis — Li supervisor (data platform + HTTP gateway)
+
+Usage:
+  lis db start [--profile NAME] [--foreground]
+  lis db stop
+  lis db status
+  lis db migrate [--to REV]
+
+Environment (db subcommands):
+  LI_DATA_DIR   Data directory (default: ~/.local/share/lis/data)
+  LI_PROFILE    Bundle profile (default: registry-min)
+  LI_API_PORT   REST/PostgREST-shaped API (default: 54321)
+  LI_DB_PORT    Postgres wire / lidb (default: 54322)
+
+PH-DB-3: CLI stubs only — lidb in-process supervisor lands after WP1 (lidb scaffold).
+EOF
+}
+
+lis_db_start() {
+  local profile="${LI_PROFILE:-registry-min}"
+  local data_dir="${LI_DATA_DIR:-${HOME}/.local/share/lis/data}"
+  local api_port="${LI_API_PORT:-54321}"
+  local db_port="${LI_DB_PORT:-54322}"
+  local foreground="${1:-}"
+
+  mkdir -p "$data_dir"
+  local pid_file="${data_dir}/lis-db.pid"
+  if [[ -f "$pid_file" ]] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then
+    echo "lis db: already running (pid $(cat "$pid_file"), profile=${profile})" >&2
+    exit 0
+  fi
+
+  echo "lis db start (stub): profile=${profile} data_dir=${data_dir} api=${api_port} db=${db_port}"
+  echo "  verticals: see profiles/${profile}.toml"
+  echo "  lidb: interface contract only — awaiting WP1 (li-langverse/lidb)"
+  # Placeholder supervisor: records intent; real bundle links lidb in-process via lis_supervisor.
+  echo "stub" >"${data_dir}/.lis-db-stub"
+  echo "profile=${profile}" >"${data_dir}/.lis-db-profile"
+  echo "api_port=${api_port}" >"${data_dir}/.lis-db-ports"
+  echo "db_port=${db_port}" >>"${data_dir}/.lis-db-ports"
+  if [[ "$foreground" == "--foreground" ]]; then
+    echo "lis db: foreground stub — Ctrl+C to stop"
+    trap 'rm -f "'"${pid_file}"'" "'"${data_dir}/.lis-db-stub"'"' EXIT
+    echo $$ >"$pid_file"
+    while true; do sleep 3600; done
+  else
+    (
+      echo $$
+      while true; do sleep 3600; done
+    ) &
+    echo $! >"$pid_file"
+    echo "lis db: stub supervisor pid $(cat "$pid_file")"
+  fi
+}
+
+lis_db_stop() {
+  local data_dir="${LI_DATA_DIR:-${HOME}/.local/share/lis/data}"
+  local pid_file="${data_dir}/lis-db.pid"
+  if [[ ! -f "$pid_file" ]]; then
+    echo "lis db: not running (no pid file)"
+    exit 0
+  fi
+  local pid
+  pid="$(cat "$pid_file")"
+  if kill -0 "$pid" 2>/dev/null; then
+    kill "$pid" 2>/dev/null || true
+    echo "lis db: stopped pid ${pid}"
+  else
+    echo "lis db: stale pid file removed"
+  fi
+  rm -f "$pid_file" "${data_dir}/.lis-db-stub" "${data_dir}/.lis-db-profile" "${data_dir}/.lis-db-ports"
+}
+
+lis_db_status() {
+  local profile="${LI_PROFILE:-registry-min}"
+  local data_dir="${LI_DATA_DIR:-${HOME}/.local/share/lis/data}"
+  local api_port="${LI_API_PORT:-54321}"
+  local db_port="${LI_DB_PORT:-54322}"
+  local pid_file="${data_dir}/lis-db.pid"
+
+  echo "profile:     ${profile}"
+  echo "data_dir:    ${data_dir}"
+  echo "api_port:    ${api_port}"
+  echo "db_port:     ${db_port}"
+  echo "lidb_link:   stub (WP1 pending)"
+  if [[ -f "$pid_file" ]] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then
+    echo "state:       running (pid $(cat "$pid_file"), stub supervisor)"
+  else
+    echo "state:       stopped"
+  fi
+}
+
+lis_db_migrate() {
+  local profile="${LI_PROFILE:-registry-min}"
+  local data_dir="${LI_DATA_DIR:-${HOME}/.local/share/lis/data}"
+  local to_rev="${1:-head}"
+  echo "lis db migrate (stub): profile=${profile} to=${to_rev}"
+  echo "  expected: lidb migrations/001_registry.sql (WP1) applied in-process"
+  mkdir -p "$data_dir"
+  echo "migrate_stub_${to_rev}" >"${data_dir}/.lis-db-migrate-stub"
+}
+
+main() {
+  if [[ $# -lt 1 ]]; then
+    lis_usage
+    exit 1
+  fi
+  case "$1" in
+    db)
+      shift
+      [[ $# -ge 1 ]] || { lis_usage; exit 1; }
+      case "$1" in
+        start)
+          shift
+          local fg=""
+          [[ "${1:-}" == "--foreground" ]] && { fg="--foreground"; shift; }
+          [[ "${1:-}" == "--profile" ]] && { export LI_PROFILE="$2"; shift 2; }
+          lis_db_start "$fg"
+          ;;
+        stop) lis_db_stop ;;
+        status) lis_db_status ;;
+        migrate)
+          shift
+          local to="head"
+          [[ "${1:-}" == "--to" ]] && { to="$2"; shift 2; }
+          lis_db_migrate "$to"
+          ;;
+        -h|--help|help) lis_usage ;;
+        *) echo "lis db: unknown subcommand: $1" >&2; lis_usage; exit 1 ;;
+      esac
+      ;;
+    -h|--help|help) lis_usage ;;
+    *) echo "lis: unknown command: $1 (only 'db' implemented in PH-DB-3 stub)" >&2; lis_usage; exit 1 ;;
+  esac
+}
+
+main "$@"
