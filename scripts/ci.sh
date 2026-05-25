@@ -13,6 +13,11 @@ chmod +x ./li-tests/db/run_cli_stub.sh 2>/dev/null || true
 ./li-tests/db/run_cli_stub.sh
 chmod +x ./tests/registry-api.test 2>/dev/null || true
 ./tests/registry-api.test
+chmod +x ./scripts/ensure-realtime-venv.sh ./tests/realtime-ws.test 2>/dev/null || true
+./scripts/ensure-realtime-venv.sh
+export LI_CHANGEFEED_NATIVE=0
+export LI_REALTIME_WS_RECV_TIMEOUT=5.0
+./tests/realtime-ws.test
 ./li-tests/run_security.sh
 ./li-tests/run_load.sh
 echo "== lis CI OK =="

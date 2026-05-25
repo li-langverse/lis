@@ -1,0 +1,35 @@
+# stack-full — registry-min + Realtime (WP-N3 / PH-DB).
+# Target: single-process lis supervisor with REST + changefeed WebSocket.
+
+[profile]
+id = "stack-full"
+description = "Registry bundle plus Supabase-shaped Realtime postgres_changes (stub changefeed)."
+phase = "PH-DB-N3"
+lis_supervisor = true
+lidb_embedded = true
+extends = "registry-min"
+
+[modules]
+realtime_routes = "routes/realtime"
+realtime_server = "routes/realtime/server.py"
+realtime_changefeed = "routes/realtime/changefeed.py"
+
+[ports]
+api = 54321
+db = 54322
+realtime = 54323
+
+[env]
+# LI_REALTIME_PORT — WebSocket (default 54323)
+# LI_REALTIME_REQUIRE_AUTH — set 1 in production-shaped deploys
+# LI_REALTIME_JWT_SECRET — HS256 verify when set
+
+[[verticals]]
+id = "realtime"
+package = "li-realtime"
+bundle = "lis"
+status = "stub"
+notes = "Phoenix v1.0.0 WS; native lidb_changefeed_poll with JSONL fallback (lidb #11)"
+
+[dependencies]
+wp_n3_realtime = "feat/ph-db-realtime-changefeed"

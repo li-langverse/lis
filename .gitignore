@@ -8,6 +8,7 @@ benchmarks/results/share/*.gif
 benchmarks/results/**/traj_*.txt
 leak_censor.generated.toml
 .venv/
+.venv-realtime/
 __pycache__/
 .pytest_cache/
 .idea/

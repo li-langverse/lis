@@ -22,8 +22,10 @@ Environment (db subcommands):
   LI_API_PORT   REST/PostgREST-shaped API (default: 54321)
   LI_DB_PORT    Postgres wire / lidb (default: 54322)
   LI_REGISTRY_API  Start registry REST on db start (default: 1; set 0 to skip)
+  LI_REALTIME_PORT WebSocket Realtime (default: 54323; stack-full profile)
+  LI_REALTIME_API  Start Realtime WS on db start (default: 1 for stack-full)
 
-PH-DB-3/4: CLI + registry REST stub; lidb in-process lands after WP1.
+PH-DB-3/4/N3: CLI + registry REST + Realtime WS stub; lidb in-process lands after WP1.
 EOF
 }
 
@@ -32,6 +34,7 @@ lis_db_start() {
   local data_dir="${LI_DATA_DIR:-${HOME}/.local/share/lis/data}"
   local api_port="${LI_API_PORT:-54321}"
   local db_port="${LI_DB_PORT:-54322}"
+  local realtime_port="${LI_REALTIME_PORT:-54323}"
   local foreground="${1:-}"
 
   mkdir -p "$data_dir"
@@ -49,6 +52,7 @@ lis_db_start() {
   echo "profile=${profile}" >"${data_dir}/.lis-db-profile"
   echo "api_port=${api_port}" >"${data_dir}/.lis-db-ports"
   echo "db_port=${db_port}" >>"${data_dir}/.lis-db-ports"
+  echo "realtime_port=${realtime_port}" >>"${data_dir}/.lis-db-ports"
   if [[ "$foreground" == "--foreground" ]]; then
     echo "lis db: foreground stub — Ctrl+C to stop"
     trap 'rm -f "'"${pid_file}"'" "'"${data_dir}/.lis-db-stub"'"' EXIT
@@ -65,6 +69,17 @@ lis_db_start() {
   if [[ "${LI_REGISTRY_API:-1}" != "0" ]]; then
     lis_registry_api_start "$api_port" "$data_dir"
   fi
+  if lis_profile_wants_realtime "$profile"; then
+    lis_realtime_start "$realtime_port" "$data_dir"
+  fi
+}
+
+lis_profile_wants_realtime() {
+  local profile="$1"
+  if [[ "${LI_REALTIME_API:-}" == "1" ]]; then
+    return 0
+  fi
+  [[ "$profile" == "stack-full" ]]
 }
 
 lis_registry_api_start() {
@@ -81,6 +96,35 @@ lis_registry_api_start() {
   python3 "${LIS_ROOT}/routes/registry/server.py" --port "$api_port" &
   echo $! >"$reg_pid"
   echo "lis registry API (stub): http://127.0.0.1:${api_port}/v1 (pid $(cat "$reg_pid"))"
+}
+
+lis_realtime_start() {
+  local rt_port="$1"
+  local data_dir="$2"
+  local rt_pid="${data_dir}/lis-realtime.pid"
+  if [[ -f "$rt_pid" ]] && kill -0 "$(cat "$rt_pid")" 2>/dev/null; then
+    return 0
+  fi
+  local py="python3"
+  if [[ -x "${LIS_ROOT}/.venv-realtime/bin/python" ]]; then
+    py="${LIS_ROOT}/.venv-realtime/bin/python"
+  elif ! python3 -c "import websockets" 2>/dev/null; then
+    if [[ -x "${LIS_ROOT}/scripts/ensure-realtime-venv.sh" ]]; then
+      # shellcheck source=/dev/null
+      source "${LIS_ROOT}/scripts/ensure-realtime-venv.sh" && py="${LIS_ROOT}/.venv-realtime/bin/python"
+    fi
+  fi
+  if ! "$py" -c "import websockets" 2>/dev/null; then
+    echo "lis realtime: skipped (run scripts/ensure-realtime-venv.sh)" >&2
+    return 0
+  fi
+  export LI_DATA_DIR="$data_dir"
+  export LI_REALTIME_PORT="$rt_port"
+  export LI_REALTIME_QUIET=1
+  export PYTHONPATH="${LIS_ROOT}${PYTHONPATH:+:$PYTHONPATH}"
+  "$py" "${LIS_ROOT}/routes/realtime/server.py" --port "$rt_port" &
+  echo $! >"$rt_pid"
+  echo "lis realtime WS (stub): ws://127.0.0.1:${rt_port}/realtime/v1/websocket (pid $(cat "$rt_pid"))"
 }
 
 lis_db_stop() {
@@ -103,7 +147,12 @@ lis_db_stop() {
     kill "$(cat "$reg_pid")" 2>/dev/null || true
     echo "lis registry API: stopped pid $(cat "$reg_pid")"
   fi
-  rm -f "$pid_file" "$reg_pid" "${data_dir}/.lis-db-stub" "${data_dir}/.lis-db-profile" "${data_dir}/.lis-db-ports"
+  local rt_pid="${data_dir}/lis-realtime.pid"
+  if [[ -f "$rt_pid" ]] && kill -0 "$(cat "$rt_pid")" 2>/dev/null; then
+    kill "$(cat "$rt_pid")" 2>/dev/null || true
+    echo "lis realtime WS: stopped pid $(cat "$rt_pid")"
+  fi
+  rm -f "$pid_file" "$reg_pid" "$rt_pid" "${data_dir}/.lis-db-stub" "${data_dir}/.lis-db-profile" "${data_dir}/.lis-db-ports"
 }
 
 lis_db_status() {
@@ -111,18 +160,26 @@ lis_db_status() {
   local data_dir="${LI_DATA_DIR:-${HOME}/.local/share/lis/data}"
   local api_port="${LI_API_PORT:-54321}"
   local db_port="${LI_DB_PORT:-54322}"
+  local realtime_port="${LI_REALTIME_PORT:-54323}"
   local pid_file="${data_dir}/lis-db.pid"
 
   echo "profile:     ${profile}"
   echo "data_dir:    ${data_dir}"
   echo "api_port:    ${api_port}"
   echo "db_port:     ${db_port}"
+  echo "realtime_port: ${realtime_port}"
   echo "lidb_link:   stub (WP1 pending)"
   local reg_pid="${data_dir}/lis-registry-api.pid"
   if [[ -f "$reg_pid" ]] && kill -0 "$(cat "$reg_pid")" 2>/dev/null; then
     echo "registry_api: running (pid $(cat "$reg_pid"), http://127.0.0.1:${api_port}/v1)"
   else
     echo "registry_api: stopped"
+  fi
+  local rt_pid="${data_dir}/lis-realtime.pid"
+  if [[ -f "$rt_pid" ]] && kill -0 "$(cat "$rt_pid")" 2>/dev/null; then
+    echo "realtime_ws: running (pid $(cat "$rt_pid"), ws://127.0.0.1:${realtime_port}/realtime/v1/websocket)"
+  else
+    echo "realtime_ws: stopped"
   fi
   if [[ -f "$pid_file" ]] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then
     echo "state:       running (pid $(cat "$pid_file"), stub supervisor)"
