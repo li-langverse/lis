@@ -1,0 +1,172 @@
+#!/usr/bin/env bash
+# Integration: Realtime WebSocket phx_join + postgres_changes (mock changefeed).
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+# shellcheck source=/dev/null
+source "$ROOT/scripts/ensure-realtime-venv.sh"
+PY="${ROOT}/.venv-realtime/bin/python"
+
+export LI_DATA_DIR="${TMPDIR:-/tmp}/lis-realtime-ws-$$"
+export LI_REALTIME_QUIET=1
+export PYTHONPATH="$ROOT"
+mkdir -p "$LI_DATA_DIR"
+rm -f "$LI_DATA_DIR"/wal.changefeed.mock.jsonl "$LI_DATA_DIR"/wal.changefeed.jsonl
+
+LI_REALTIME_PORT="$(python3 -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1]);s.close()')"
+
+SERVER_PID=""
+cleanup() {
+  if [[ -n "$SERVER_PID" ]] && kill -0 "$SERVER_PID" 2>/dev/null; then
+    kill "$SERVER_PID" 2>/dev/null || true
+    wait "$SERVER_PID" 2>/dev/null || true
+  fi
+  rm -rf "$LI_DATA_DIR"
+}
+trap cleanup RETURN
+
+"$PY" routes/realtime/server.py --port "$LI_REALTIME_PORT" &
+SERVER_PID=$!
+for _ in $(seq 1 40); do
+  if "$PY" -c "import socket;s=socket.socket();s.connect(('127.0.0.1',$LI_REALTIME_PORT));s.close()" 2>/dev/null; then
+    sleep 0.2
+    break
+  fi
+  sleep 0.1
+done
+
+export LI_REALTIME_PORT
+export LIS_ROOT="$ROOT"
+"$PY" - <<'PY'
+import asyncio
+import json
+import os
+import sys
+from pathlib import Path
+
+import websockets
+
+ROOT = Path(os.environ["LIS_ROOT"])
+sys.path.insert(0, str(ROOT))
+
+from routes.realtime.changefeed import ChangefeedSource
+from routes.realtime.protocol import decode_message, encode_message
+
+PORT = int(os.environ["LI_REALTIME_PORT"])
+DATA = Path(os.environ["LI_DATA_DIR"])
+TOPIC = "realtime:registry"
+
+
+def _jwt(payload: dict) -> str:
+    import base64
+
+    def b64(obj: dict) -> str:
+        raw = json.dumps(obj, separators=(",", ":")).encode()
+        return base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+    return f"{b64({})}.{b64(payload)}.stub"
+
+
+async def main() -> None:
+    token = _jwt({"role": "authenticated", "sub": "user-test", "publisher_id": "pub-a"})
+    uri = f"ws://127.0.0.1:{PORT}/realtime/v1/websocket?apikey={token}"
+    feed = ChangefeedSource(DATA)
+
+    async with websockets.connect(uri) as ws:
+        join = encode_message(
+            TOPIC,
+            "phx_join",
+            {
+                "config": {
+                    "postgres_changes": [
+                        {"event": "INSERT", "schema": "public", "table": "package_versions"}
+                    ]
+                },
+                "access_token": token,
+            },
+            ref="1",
+            join_ref="1",
+        )
+        await ws.send(join)
+
+        saw_reply = False
+        saw_system = False
+        for _ in range(20):
+            raw = await asyncio.wait_for(ws.recv(), timeout=2.0)
+            msg = decode_message(raw)
+            if msg.event == "phx_reply" and msg.payload.get("status") == "ok":
+                saw_reply = True
+            if msg.event == "system":
+                saw_system = True
+            if saw_reply and saw_system:
+                break
+        if not (saw_reply and saw_system):
+            raise SystemExit("missing phx_reply or system after join")
+
+        feed.push_mock(
+            table="package_versions",
+            record={"id": "v1", "publisher_id": "pub-a", "name": "demo"},
+        )
+        await asyncio.sleep(0.3)
+
+        saw_insert = False
+        for _ in range(20):
+            raw = await asyncio.wait_for(ws.recv(), timeout=2.0)
+            msg = decode_message(raw)
+            if msg.event != "postgres_changes":
+                continue
+            data = msg.payload.get("data") or {}
+            if data.get("type") == "INSERT" and data.get("table") == "package_versions":
+                rec = data.get("record") or {}
+                if rec.get("name") == "demo":
+                    saw_insert = True
+                    break
+        if not saw_insert:
+            raise SystemExit("did not receive postgres_changes INSERT")
+
+    # RLS: row for other tenant must not be delivered
+    token_b = _jwt({"role": "authenticated", "sub": "user-b", "publisher_id": "pub-b"})
+    uri_b = f"ws://127.0.0.1:{PORT}/realtime/v1/websocket?apikey={token_b}"
+    async with websockets.connect(uri_b) as ws:
+        await ws.send(
+            encode_message(
+                TOPIC,
+                "phx_join",
+                {
+                    "config": {
+                        "postgres_changes": [
+                            {"event": "INSERT", "schema": "public", "table": "package_versions"}
+                        ]
+                    },
+                    "access_token": token_b,
+                },
+                ref="2",
+                join_ref="2",
+            )
+        )
+        for _ in range(10):
+            await asyncio.wait_for(ws.recv(), timeout=2.0)
+        feed.push_mock(
+            table="package_versions",
+            record={"id": "v2", "publisher_id": "pub-a", "name": "hidden"},
+        )
+        for _ in range(8):
+            try:
+                raw = await asyncio.wait_for(ws.recv(), timeout=0.5)
+            except asyncio.TimeoutError:
+                break
+            msg = decode_message(raw)
+            if msg.event == "postgres_changes":
+                rec = (msg.payload.get("data") or {}).get("record") or {}
+                if rec.get("name") == "hidden":
+                    raise SystemExit("RLS leak: received other tenant row")
+
+    print("realtime-ws: OK")
+
+
+asyncio.run(main())
+PY
+
+echo "realtime-ws integration: OK"
