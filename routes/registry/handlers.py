@@ -7,7 +7,8 @@ import re
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from .liorm_mock import RegistryError, get_registry_store
+from .errors import RegistryError
+from .store import get_registry_store, registry_backend_name
 
 NAME_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
 VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$")
@@ -64,7 +65,14 @@ def handle_request(
     store = get_registry_store()
 
     if route == "/health":
-        return _json_response(200, {"status": "ok", "service": "lis-registry", "stub": True})
+        backend = registry_backend_name()
+        body: dict[str, Any] = {
+            "status": "ok",
+            "service": "lis-registry",
+            "backend": backend,
+            "stub": backend == "mock" or backend == "liorm",
+        }
+        return _json_response(200, body)
 
     if route == "/v1/openapi.yaml":
         from pathlib import Path

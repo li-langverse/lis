@@ -13,14 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-
-class RegistryError(Exception):
-    def __init__(self, error: str, message: str, status: int = 400, **details: Any) -> None:
-        super().__init__(message)
-        self.error = error
-        self.message = message
-        self.status = status
-        self.details = details
+from .errors import RegistryError
 
 
 @dataclass
