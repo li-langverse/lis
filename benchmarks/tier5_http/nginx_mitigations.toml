@@ -1,89 +1,140 @@
-# Curated nginx security checklist — sync with audit_nginx_src.py when submodule present.
-# See docs/security-nginx-src-audit.md
+# Machine-readable nginx / webserver mitigation catalog (tier-5 HTTP).
+# Sources: nginx CHANGES Security, CWE/CAPEC, Envoy/Apache hardening guides.
+# Run: python3 scripts/audit-nginx-mitigations.py (lic) to refresh stubs.
 
 [[mitigation]]
 id = "duplicate_content_length"
 cve = ["CVE-2019-20372"]
 nginx_version_fixed = "1.17.7"
-src = "src/http/ngx_http_parse.c"
-notes = "reject duplicate Content-Length"
-exploit = "exploits/request_smuggling_cl_te.toml"
+notes = "Reject duplicate Content-Length"
+exploit = "exploits/duplicate_content_length.toml"
 li_invariant = "single parser rejects duplicate Content-Length"
-li_done = false
+li_done = true
 
 [[mitigation]]
-id = "slowloris_header_timeout"
-notes = "client_header_timeout / slow header read"
+id = "client_header_timeout"
+cve = []
+notes = "slowloris — client_header_timeout / client_body_timeout"
 exploit = "exploits/slowloris.toml"
-li_invariant = "header read bounded by timeout; attack conns closed"
-li_done = false
+li_invariant = "partial headers cannot hold slot forever"
+li_done = true
 
 [[mitigation]]
-id = "oversized_request_line"
-notes = "large_client_header_buffers / request line limit"
+id = "large_client_header_buffers"
+cve = []
+notes = "oversized request line / headers"
 exploit = "exploits/oversized_request_line.toml"
-li_invariant = "request line length <= configured max"
-li_done = false
+li_invariant = "request line bounded; excess rejected"
+li_done = true
 
 [[mitigation]]
-id = "oversized_headers"
-notes = "total header size limits"
-exploit = "exploits/oversized_headers.toml"
-li_invariant = "total header bytes <= configured max"
-li_done = false
+id = "path_traversal_blocks"
+cve = ["CVE-2001-0500"]
+notes = "no alias traversal; encoded .. blocked"
+exploit = "exploits/path_traversal.toml"
+li_invariant = "path_is_safe rejects .., %, backslash, double-slash"
+li_done = true
 
 [[mitigation]]
-id = "chunked_encoding_abuse"
-notes = "invalid chunked encoding"
-exploit = "exploits/chunked_encoding_abuse.toml"
-li_invariant = "chunk decoder rejects malformed bodies"
-li_done = false
+id = "worker_connections_limit"
+cve = []
+notes = "connection exhaustion"
+exploit = "exploits/connection_flood.toml"
+li_invariant = "max connections bounded; server stays responsive"
+li_done = true
+
+[[mitigation]]
+id = "invalid_method_reject"
+cve = []
+notes = "unknown HTTP methods"
+exploit = "exploits/bad_method.toml"
+li_invariant = "non-GET static path returns error without crash"
+li_done = true
+
+[[mitigation]]
+id = "request_smuggling_cl_te"
+cve = ["CVE-2019-20372"]
+notes = "CL.TE desync class"
+exploit = "exploits/request_smuggling_cl_te.toml"
+li_invariant = "no conflicting content-length + chunked front"
+li_done = true
 
 [[mitigation]]
 id = "request_smuggling_te_cl"
-notes = "TE.CL smuggling"
+cve = ["CWE-444"]
+notes = "TE.CL desync — chunked + short Content-Length"
 exploit = "exploits/request_smuggling_te_cl.toml"
-li_invariant = "reject ambiguous transfer-encoding + content-length"
-li_done = false
+li_invariant = "reject TE+CL conflict; no inner request served"
+li_done = true
 
 [[mitigation]]
-id = "path_traversal_encoded"
-notes = "static alias / encoded path traversal"
-exploit = "exploits/path_traversal_encoded.toml"
-li_invariant = "normalized path stays under static root"
-li_done = false
+id = "proxy_loopback_allowlist"
+cve = []
+notes = "SSRF — upstream loopback only in M1"
+exploit = "exploits/path_traversal.toml"
+li_invariant = "upstream host locked to 127.0.0.1"
+li_done = true
 
 [[mitigation]]
-id = "host_header_poison"
-notes = "Host header validation on reverse proxy"
-exploit = "exploits/host_header_poison.toml"
-li_invariant = "Host allowlist enforced on public listeners"
-li_done = false
-
-[[mitigation]]
-id = "connection_flood"
-notes = "connection limits / worker exhaustion"
-exploit = "exploits/connection_flood.toml"
-li_invariant = "connection count bounded per worker"
-li_done = false
-
-[[mitigation]]
-id = "proxy_ssrf_header"
-notes = "forwarding dangerous headers to upstream"
-exploit = "exploits/proxy_ssrf_header.toml"
-li_invariant = "hop-by-hop and sensitive headers stripped"
-li_done = false
-
-[[mitigation]]
-id = "rng_constant_bytes"
-notes = "TLS/RNG must not use deterministic bytes in prod"
+id = "tls_record_iv_unique"
+cve = []
+notes = "OpenSSL RAND — Tier F"
 exploit = "exploits/rng_constant_bytes.toml"
-li_invariant = "OsCsprng for TLS nonces/keys in production profile"
+li_invariant = "no predictable TLS record IV in production"
 li_done = false
 
 [[mitigation]]
-id = "leak_openai_key_in_sse"
-notes = "upstream secret in SSE stream"
+id = "no_cgi_exec"
+cve = ["CVE-2014-6271", "CVE-2014-6278"]
+notes = "No CGI/shell execution on User-Agent or path; Shellshock class"
+exploit = "exploits/shellshock_user_agent.toml"
+li_invariant = "static server never invokes shell from headers"
+li_done = true
+
+[[mitigation]]
+id = "no_reverse_shell_callback"
+cve = []
+notes = "RCE must not open loopback callback (reverse-shell class)"
+exploit = "exploits/reverse_shell_canary.toml"
+li_invariant = "no outbound connect from worker on exploit probes"
+li_done = true
+
+[[mitigation]]
+id = "sensitive_file_exposure"
+cve = ["CVE-2001-0500"]
+notes = "Block /etc/passwd, shadow, proc, ssh keys via HTTP GET"
+exploit = "exploits/sensitive_file_read.toml"
+li_invariant = "docroot jail; no passwd/key bytes in response"
+li_done = true
+
+[[mitigation]]
+id = "privilege_path_alias_merge"
+cve = ["CVE-2013-4547"]
+notes = "Alias merge / ..;/ / null-byte path priv esc"
+exploit = "exploits/privilege_path_escalation.toml"
+li_invariant = "path_is_safe + no alias merge outside root"
+li_done = true
+
+[[mitigation]]
+id = "no_shell_metachar_in_path"
+cve = []
+notes = "Command injection in URI ($(), ;, |, backticks)"
+exploit = "exploits/command_injection_path.toml"
+li_invariant = "metachar paths never executed or echoed as id output"
+li_done = true
+
+[[mitigation]]
+id = "host_header_ssrf_block"
+cve = []
+notes = "Metadata Host / internal SSRF via misconfigured proxy"
+exploit = "exploits/host_header_ssrf.toml"
+li_invariant = "Host cannot fetch cloud metadata through static front"
+li_done = true
+
+[[mitigation]]
+id = "upstream_leak_censor"
+cve = []
+notes = "Tier G — SSE leak to client"
 exploit = "exploits/leak_openai_key_in_sse.toml"
-li_invariant = "leak_censor scrubs sk- patterns when enabled"
+li_invariant = "leak patterns redacted on egress when enabled"
 li_done = false

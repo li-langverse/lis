@@ -1,15 +1,11 @@
 [default]
-include = ["static_small"]
+include = ["static_small", "keepalive_pipelining", "static_large", "proxy_loopback", "lb_round_robin", "lb_least_conn", "lb_peer_down", "rate_limit_429"]
 timing = false
 
 [profiles.ci]
-include = ["static_small"]
+include = ["static_small", "keepalive_pipelining", "static_large", "proxy_loopback", "lb_round_robin", "lb_least_conn", "lb_peer_down", "rate_limit_429"]
 timing = false
 
 [profiles.nightly]
-include = ["static_small", "keepalive_pipelining"]
+include = ["static_small", "keepalive_pipelining", "static_large", "proxy_loopback", "lb_round_robin", "lb_least_conn", "lb_peer_down", "rate_limit_429", "https_static"]
 timing = true
-
-[profiles.baseline]
-include = ["static_small", "keepalive_pipelining"]
-timing = false

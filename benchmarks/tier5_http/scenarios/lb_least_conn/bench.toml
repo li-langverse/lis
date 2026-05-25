@@ -1,8 +1,12 @@
-name = "keepalive_pipelining"
+name = "lb_least_conn"
+
+[proxy]
+enabled = true
+backend_count = 3
+lb_mode = "least_conn"
 
 [server]
 listen = ":8080"
-workers = 1
 
 [verify]
 requests = [
@@ -11,7 +15,7 @@ requests = [
 
 [load]
 tool = "wrk"
-duration_sec = 10
-connections = 16
+url_path = "/"
+duration_sec = 8
+connections = 8
 threads = 2
-pipeline = 8

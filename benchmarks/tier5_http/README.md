@@ -1,38 +1,63 @@
-# tier5_http — li-httpd benchmarks & exploits
+# Tier-5 HTTP benchmarks (`li-httpd` · nginx oracle)
 
-TOML-driven harness (no hardcoded scenarios in Python). Nginx is **oracle only** — not ported to Li.
+## What runs today
 
-## Quick start (CI / verify-only)
+`harness/bench_http.py` validates each scenario’s `bench.toml`, then — when `nginx` and `wrk` are on `PATH` — starts **stock nginx** in a private prefix serving `fixtures/static/`, runs **wrk**, and writes **`results/latest.csv`** (same column schema as `lic` bench exports).
+
+Profiles come from `suite.toml`:
+
+| Profile   | Timing | wrk duration (typical) |
+|-----------|--------|-------------------------|
+| `ci`      | off    | capped (default 3s via `BENCH_HTTP_QUICK_SEC`) |
+| `nightly` | on     | uses `[load].duration_sec` from each scenario |
+
+Scenarios in `suite.toml` **ci** / **nightly**: `static_small`, `keepalive_pipelining`, `static_large` (GET `/file.bin`, 1 MiB fixture auto-generated).
+
+Throughput rows are emitted per oracle in `BENCH_HTTP_ORACLES` (default **`nginx,apache,lighttpd,node,bun,li`**). **`node`** / **`bun`** use `harness/static_server.mjs`. Set `LI_HTTPD_BIN` for `lang=li`. Optional **`caddy`** when `caddy` is on `PATH`.
+
+## Exploit harness (security)
+
+`harness/exploit_http.py` runs TOML-driven attacks from `exploits/` against **nginx**, **Apache**, **Node**, **Bun**, optional **lighttpd**/**caddy**, and **li-httpd** on loopback only.
+
+| Tier | Examples |
+|------|----------|
+| A/B | slowloris, oversized line, duplicate Content-Length |
+| **C** | `reverse_shell_canary` (localhost callback sink), `sensitive_file_read`, `shellshock_user_agent`, `privilege_path_escalation`, `command_injection_path`, `host_header_ssrf` |
+
+Tier **C** probes RCE / reverse-shell / priv-esc *classes* — they do **not** deploy real shells or dial external hosts.
 
 ```bash
-./scripts/verify-http.sh
-# or
-cd benchmarks/tier5_http/harness
-export PYTHONPATH=.
-python3 verify_http.py --all --profile ci
-python3 exploit_http.py --profile pr
-python3 bench_http.py static_small --profile ci
+LI_HTTPD_BIN=/path/to/lic/build/li-httpd \
+  python3 benchmarks/tier5_http/harness/exploit_http.py --profile pr
+# Oracles: nginx + apache2 + li-httpd
+TIER5_EXPLOIT_LANGS=nginx,apache,li ./scripts/run-tier5-http-exploits.sh
+# Nightly adds CL.TE / TE.CL smuggling probes
+TIER5_EXPLOIT_PROFILE=nightly TIER5_EXPLOIT_LANGS=nginx,apache,li \
+  python3 benchmarks/tier5_http/harness/exploit_http.py --profile nightly
+cat ../results/exploit_report.csv
 ```
 
-## Nginx source audit (optional)
+**CI:** Benchmarks `ci.yml` builds `li-httpd` and runs `./scripts/run-tier5-http-exploits.sh` with `TIER5_EXPLOIT_LANGS=nginx,apache,li` (requires `apache2` package).
+
+## Quick commands (from lis repo root)
 
 ```bash
-git submodule update --init benchmarks/tier5_http/third_party/nginx
-python3 benchmarks/tier5_http/harness/audit_nginx_src.py
+# TOML-only / harness rows (no wrk)
+python3 benchmarks/tier5_http/harness/bench_http.py --profile ci --no-bench
+
+# Multi-oracle wrk (Linux example)
+sudo apt-get install -y nginx wrk apache2 lighttpd
+# Node 22+ and Bun on PATH (see CI setup-node / setup-bun)
+BENCH_HTTP_ORACLES=nginx,apache,lighttpd,node,bun,li ./scripts/run-tier5-http-bench.sh
+cat vendor/lis-tier5/results/latest.csv
 ```
 
-## Profiles
+Single scenario:
 
-| Profile | `suite.toml` | Timing |
-|---------|--------------|--------|
-| `ci` | verify only | no |
-| `nightly` | + keepalive_pipelining | yes (when servers ship) |
+```bash
+python3 benchmarks/tier5_http/harness/bench_http.py static_small --profile nightly
+```
 
-Exploits: `suite_exploits.toml` — `pr` vs `nightly`.
+## Downstream ingest
 
-## Docs
-
-- [docs/security-nginx-src-audit.md](../../docs/security-nginx-src-audit.md)
-- [docs/plan.md](../../docs/plan.md) — full li-httpd plan copy
-
-**Learned from:** nginx (CVE checklist), wrk/h2load (load tools), Envoy/LiteLLM (limits) — see [lic engineering-standards](https://github.com/li-langverse/lic/blob/dev/docs/ecosystem/engineering-standards.md).
+The **benchmarks** repo merges `lis/results/latest.csv` when building `data/latest/summary.json` (`compare_oracle = "nginx"` for tier-5 HTTP rows in `catalog.toml`).

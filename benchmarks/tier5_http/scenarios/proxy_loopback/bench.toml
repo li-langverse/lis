@@ -1,4 +1,7 @@
-name = "keepalive_pipelining"
+name = "proxy_loopback"
+
+[proxy]
+enabled = true
 
 [server]
 listen = ":8080"
@@ -11,7 +14,7 @@ requests = [
 
 [load]
 tool = "wrk"
+url_path = "/"
 duration_sec = 10
-connections = 16
+connections = 8
 threads = 2
-pipeline = 8

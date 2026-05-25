@@ -2,13 +2,8 @@
 static_root = "fixtures/static"
 static_file = "index.html"
 
-[nginx]
-tag = "1.26.2"
-submodule = "third_party/nginx"
-
 [tools]
 wrk = "wrk"
-h2load = "h2load"
 
 [load]
 warmup_sec = 30

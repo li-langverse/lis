@@ -1,8 +1,12 @@
-name = "keepalive_pipelining"
+name = "lb_peer_down"
+
+[proxy]
+enabled = true
+backend_count = 3
+kill_backend_index = 1
 
 [server]
 listen = ":8080"
-workers = 1
 
 [verify]
 requests = [
@@ -11,7 +15,7 @@ requests = [
 
 [load]
 tool = "wrk"
-duration_sec = 10
-connections = 16
+url_path = "/"
+duration_sec = 5
+connections = 8
 threads = 2
-pipeline = 8
