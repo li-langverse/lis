@@ -27,6 +27,49 @@ lis db start && lis db status
 ./scripts/ci.sh
 ```
 
+## Dev containers (WP-H)
+
+**Dev-only** — embed `registry-min` profile, not production Postgres or TCP wire.
+
+Requires sibling **`lidb`** at `../lidb` (same layout as native `lis db`).
+
+```bash
+cd lis
+docker compose -f docker-compose.ph-db.yml up --build -d
+docker compose -f docker-compose.ph-db.yml exec lis-db lis db status
+```
+
+Default bind-mount: `./.li-data` → container `/data`. Override with `LI_DATA_DIR=/path/to/data`.
+
+Without the compose plugin:
+
+```bash
+DOCKER_BUILDKIT=1 docker build -f docker/Dockerfile.supervisor --build-context lidb=../lidb -t li-langverse/lis-db-dev:local .
+docker run -d -v ./.li-data:/data --name lis-db li-langverse/lis-db-dev:local
+docker exec lis-db lis db status
+```
+
+Optional Postgres oracle for benchmarks (compose profile `bench`):
+
+```bash
+docker compose -f docker-compose.ph-db.yml --profile bench up -d postgres-oracle
+export POSTGRES_URL=postgres://bench:bench@localhost:5432/registry_bench
+```
+
+### Connect agents (host)
+
+Point **li-cursor-agents** (or other consumers) at the same data dir the container uses:
+
+```bash
+export LI_CONTROL_PLANE_STORE=lidb
+export LI_DATA_DIR="${LI_DATA_DIR:-./.li-data}"   # must match compose bind-mount
+export LI_LIDB_REPO="${LI_LIDB_REPO:-../lidb}"    # host checkout for bridge build
+# optional health gate:
+lis db status   # or: docker compose -f docker-compose.ph-db.yml exec lis-db lis db status
+```
+
+Images: `lis/docker/Dockerfile.supervisor` (multi-stage, bakes `lidb_embed`); standalone embed build in `lidb/docker/Dockerfile.embed`.
+
 ## Docs
 
 - [docs/index.md](docs/index.md) — overview

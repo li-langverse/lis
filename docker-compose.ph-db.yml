@@ -1,0 +1,45 @@
+# PH-DB dev stack (WP-H). Requires sibling ../lidb checkout for BuildKit additional_context.
+# Dev-only — embed registry-min profile, not production Postgres or TCP wire.
+#
+# Quick start:
+#   docker compose -f docker-compose.ph-db.yml up --build -d
+#   docker compose -f docker-compose.ph-db.yml exec lis-db lis db status
+#
+# Without compose plugin:
+#   DOCKER_BUILDKIT=1 docker build -f docker/Dockerfile.supervisor --build-context lidb=../lidb -t li-langverse/lis-db-dev:local .
+#   docker run -d -v ./.li-data:/data --name lis-db li-langverse/lis-db-dev:local
+services:
+  lis-db:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.supervisor
+      additional_contexts:
+        lidb: ../lidb
+    image: li-langverse/lis-db-dev:local
+    environment:
+      LI_DATA_DIR: /data
+      LI_PROFILE: registry-min
+      LIDB_REPO: /opt/lidb
+    volumes:
+      - ${LI_DATA_DIR:-./.li-data}:/data
+    healthcheck:
+      test: ["CMD", "lis", "db", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+
+  postgres-oracle:
+    image: postgres:16-alpine
+    profiles: ["bench"]
+    environment:
+      POSTGRES_USER: bench
+      POSTGRES_PASSWORD: bench
+      POSTGRES_DB: registry_bench
+    ports:
+      - "${POSTGRES_ORACLE_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bench -d registry_bench"]
+      interval: 5s
+      timeout: 3s
+      retries: 5

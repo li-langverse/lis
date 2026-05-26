@@ -56,6 +56,35 @@ lis db stop       # clear supervisor state (keeps data dir)
 
 See [`profiles/registry-min.toml`](../profiles/registry-min.toml). Pre-registered plans include `agent_runs.recent`, `agent_runs.by_status`, and `packages.by_name` (compiled via **liq** at start).
 
+## Docker dev stack (WP-H)
+
+Dev-only compose — not production hosting. Builds `lidb_embed` inside the image; no TCP listener (`registry-min`).
+
+**Prerequisites:** sibling `lidb` at `../lidb` (BuildKit `additional_contexts`).
+
+```bash
+docker compose -f docker-compose.ph-db.yml up --build -d
+docker compose -f docker-compose.ph-db.yml exec lis-db lis db status
+```
+
+| Compose env | Default | Notes |
+|-------------|---------|-------|
+| `LI_DATA_DIR` (host bind) | `./.li-data` | Shared with host agents when using default mount |
+| Container `LI_DATA_DIR` | `/data` | Set in compose |
+| Container `LIDB_REPO` | `/opt/lidb` | Baked lidb tree + embed binary |
+
+**Host agents** (`li-cursor-agents`):
+
+```bash
+export LI_CONTROL_PLANE_STORE=lidb
+export LI_DATA_DIR=./.li-data          # same path as compose bind-mount
+export LI_LIDB_REPO=../lidb            # host lidb for scripts/lidb-liorm-bridge.py
+```
+
+Optional bench oracle: `docker compose -f docker-compose.ph-db.yml --profile bench up -d postgres-oracle`.
+
+See also [`docker/Dockerfile.supervisor`](../docker/Dockerfile.supervisor), [`lidb/docker/Dockerfile.embed`](https://github.com/li-langverse/lidb/blob/main/docker/Dockerfile.embed).
+
 ## Smoke
 
 ```bash
