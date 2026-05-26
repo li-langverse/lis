@@ -6,7 +6,9 @@ Secure-by-design TOML config, optional leak censorship (schema-driven setup), st
 
 ## Status
 
-**Infrastructure only** — packages, harness, and docs are in place; **application code is not started** while the Li language surface stabilizes.
+**Infrastructure** — packages, harness, and docs are in place; **li-httpd application code** is not started while the Li language surface stabilizes.
+
+**PH-DB-3 (`lis db`)** — embedded **lidb** supervisor (`start|migrate|status|stop`) with `registry-min` profile is available; see [docs/db.md](docs/db.md).
 
 | Branch | Use |
 |--------|-----|
@@ -18,13 +20,17 @@ Secure-by-design TOML config, optional leak censorship (schema-driven setup), st
 ```bash
 git clone https://github.com/li-langverse/lis.git
 cd lis
-git checkout dev
+git clone https://github.com/li-langverse/lidb.git ../lidb  # sibling for lis db
+pip install -e .
+export LI_DATA_DIR=./.li-data
+lis db start && lis db status
 ./scripts/ci.sh
 ```
 
 ## Docs
 
 - [docs/index.md](docs/index.md) — overview
+- [docs/db.md](docs/db.md) — `lis db` / lidb embed (PH-DB-3)
 - [docs/plan.md](docs/plan.md) — full design
 - [docs/packages/](docs/packages/) — per-package function catalogs
 - [docs/package-workflow.md](docs/package-workflow.md) — `li-new-package` / lip § A3 (required)

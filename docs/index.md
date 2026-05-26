@@ -6,8 +6,9 @@
 
 | Phase | State |
 |-------|--------|
-| **Infra** (now) | CI, packages layout, harness TOML, docs — **no application code yet** |
-| **Implementation** | Blocked on Li language/compiler stabilization ([li-langverse/li](https://github.com/li-langverse/li)) |
+| **Infra** (now) | CI, packages layout, harness TOML, docs |
+| **`lis db` (PH-DB-3)** | Embedded [lidb](https://github.com/li-langverse/lidb) supervisor — see [db.md](db.md) |
+| **li-httpd** | Blocked on Li language/compiler stabilization ([li-langverse/li](https://github.com/li-langverse/li)) |
 
 ## Quick links
 
@@ -16,7 +17,8 @@
 | [plan.md](plan.md) | Full implementation plan |
 | [architecture.md](architecture.md) | Package graph |
 | [ci.md](ci.md) | CI matrix and local runs |
-| [cli.md](cli.md) | `li-httpd` commands (planned) |
+| [cli.md](cli.md) | `lis db` + planned `li-httpd` commands |
+| [db.md](db.md) | PH-DB-3 lidb embed supervisor |
 | [packages/](packages/) | Per-package API catalogs |
 | [package-workflow.md](package-workflow.md) | `li-new-package` / lip § A3 (required) |
 | [org-packages.md](org-packages.md) | li-langverse org repos (e.g. li-math) |

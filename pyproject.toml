@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lis-supervisor"
+version = "0.1.0"
+description = "lis db supervisor for embedded lidb (PH-DB-3)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+lis = "lis.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["lis*"]
+
+[tool.pytest.ini_options]
+testpaths = ["li-tests"]
+pythonpath = ["."]

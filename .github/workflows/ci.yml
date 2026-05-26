@@ -34,7 +34,17 @@ jobs:
       - name: Install test deps
         run: pip install pytest
 
+      - name: Checkout lidb (PH-DB-3 embed)
+        if: runner.os != 'Windows'
+        uses: actions/checkout@v4
+        with:
+          repository: li-langverse/lidb
+          path: lidb
+          ref: main
+
       - name: Infra + security + load (stub harness)
+        env:
+          LIDB_REPO: ${{ github.workspace }}/lidb
         run: ./scripts/ci.sh
 
   merge-gate:

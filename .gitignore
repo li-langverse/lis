@@ -6,6 +6,7 @@ benchmarks/results/share/*.png
 benchmarks/results/share/*.gif
 benchmarks/results/**/traj_*.txt
 leak_censor.generated.toml
+.li-data/
 .venv/
 __pycache__/
 .pytest_cache/

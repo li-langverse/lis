@@ -1,0 +1,32 @@
+# PH-DB-3 registry-min profile — embedded lidb, no TCP loopback by default.
+# See docs/db.md and lidb/docs/handoff-wp5-lis.md
+
+[profile]
+name = "registry-min"
+search_path = "public"
+embed_mode = "in_process"
+# 0 disables TCP; non-zero reserved for profiles that expose PG-shaped wire later.
+tcp_port = 0
+migration = "001_registry.sql"
+
+[modules]
+realtime = false
+graph = false
+gpu = false
+vector = false
+
+[[vertical]]
+id = "registry"
+description = "Package registry + agent_runs OLTP (001_registry.sql)"
+
+[[plan]]
+name = "agent_runs.recent"
+liq = "read agent_runs limit 20"
+
+[[plan]]
+name = "agent_runs.by_status"
+liq = "read agent_runs where status = $status limit 20"
+
+[[plan]]
+name = "packages.by_name"
+liq = "read packages where name = $name limit 1"
