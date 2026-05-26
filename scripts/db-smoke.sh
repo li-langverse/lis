@@ -10,7 +10,7 @@ export LIDB_REPO
 
 DATA_DIR="$(mktemp -d "${TMPDIR:-/tmp}/lis-db-smoke.XXXXXX")"
 export LI_DATA_DIR="$DATA_DIR"
-export LI_PROFILE=registry-min
+export LI_PROFILE="${LI_PROFILE:-registry-min}"
 trap 'rm -rf "$DATA_DIR"' EXIT
 
 export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"

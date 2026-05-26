@@ -1,0 +1,26 @@
+# lis db supervisor — template unit (%i = profile name, e.g. control-plane-min)
+# Install: cp to /etc/systemd/system/ && systemctl enable lis-db@control-plane-min
+
+[Unit]
+Description=lis db supervisor (%i)
+Documentation=https://github.com/li-langverse/lis/blob/main/docs/db.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lis
+Group=lis
+Environment=LI_DATA_DIR=/var/lib/lis/%i
+Environment=LI_PROFILE=%i
+Environment=LIDB_REPO=/opt/lidb
+WorkingDirectory=/var/lib/lis/%i
+ExecStart=/usr/local/bin/lis db start --foreground
+ExecStop=/usr/local/bin/lis db stop
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

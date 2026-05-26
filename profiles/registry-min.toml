@@ -1,5 +1,5 @@
 # PH-DB-3 registry-min profile — embedded lidb, no TCP loopback by default.
-# See docs/db.md and lidb/docs/handoff-wp5-lis.md
+# See profiles/README.md, docs/db.md, lidb/docs/handoff-wp5-lis.md
 
 [profile]
 name = "registry-min"
@@ -8,6 +8,11 @@ embed_mode = "in_process"
 # 0 disables TCP; non-zero reserved for profiles that expose PG-shaped wire later.
 tcp_port = 0
 migration = "001_registry.sql"
+
+[hosting]
+service = "registry"
+readiness_requires = ["catalog", "engine", "plans"]
+liveness_interval_sec = 30
 
 [modules]
 realtime = false

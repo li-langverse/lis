@@ -1,0 +1,30 @@
+# PH-DB WP-I — TCP wire profile stub (NOT IMPLEMENTED).
+# Documents future PG-shaped loopback for external clients; do not use in production.
+# lis db start raises NotImplementedError when tcp_port > 0 and embed_mode != in_process.
+# See profiles/README.md § TCP wire stub.
+
+[profile]
+name = "tcp-wire-stub"
+search_path = "public"
+embed_mode = "tcp_loopback"
+tcp_port = 54321
+migration = "001_registry.sql"
+
+[hosting]
+service = "lidb-tcp"
+readiness_requires = ["catalog", "engine", "tcp_listen"]
+liveness_interval_sec = 10
+
+[modules]
+realtime = false
+graph = false
+gpu = false
+vector = false
+
+[[vertical]]
+id = "registry"
+description = "Registry-min tables over future TCP loopback (PH-DB-4+)"
+
+[[plan]]
+name = "agent_runs.recent"
+liq = "read agent_runs limit 20"

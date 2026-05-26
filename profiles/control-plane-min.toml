@@ -1,0 +1,59 @@
+# PH-DB WP-I — control-plane hosting profile (in-process embed, no TCP wire).
+# Registry tables + agent/control-plane read plans for li-cursor-agents lidb store.
+# See profiles/README.md and docs/db.md.
+
+[profile]
+name = "control-plane-min"
+search_path = "public"
+embed_mode = "in_process"
+tcp_port = 0
+migration = "001_registry.sql"
+# Full control-plane DDL (control_plane_state, reports, …) lands in lidb WP-J:
+# migrations/002_control_plane.sql (not applied by lis until native catalog ships).
+
+[hosting]
+service = "control-plane"
+readiness_requires = ["catalog", "engine", "plans"]
+liveness_interval_sec = 30
+
+[modules]
+realtime = false
+graph = false
+gpu = false
+vector = false
+
+[[vertical]]
+id = "registry"
+description = "Package registry OLTP (001_registry.sql)"
+
+[[vertical]]
+id = "control-plane"
+description = "Agent runs + control-plane OLTP (agent_runs today; full schema WP-J)"
+
+[[plan]]
+name = "agent_runs.recent"
+liq = "read agent_runs limit 20"
+
+[[plan]]
+name = "agent_runs.by_status"
+liq = "read agent_runs where status = $status limit 20"
+
+[[plan]]
+name = "packages.by_name"
+liq = "read packages where name = $name limit 1"
+
+[[plan]]
+name = "control_plane_state.latest"
+liq = "read control_plane_state limit 1"
+
+[[plan]]
+name = "control_plane_reports.recent"
+liq = "read control_plane_reports limit 20"
+
+[[plan]]
+name = "briefing_snapshots.by_hash"
+liq = "read briefing_snapshots where briefing_hash = $briefing_hash limit 1"
+
+[[plan]]
+name = "queued_agent_tasks.by_briefing"
+liq = "read queued_agent_tasks where briefing_hash = $briefing_hash limit 50"

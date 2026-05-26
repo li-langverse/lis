@@ -1,4 +1,4 @@
-"""PH-DB-3 lis db supervisor tests."""
+"""PH-DB-3 / WP-I lis db supervisor tests."""
 
 from __future__ import annotations
 
@@ -33,7 +33,30 @@ def test_profile_loads_registry_min():
     prof = load_profile(LIS_ROOT / "profiles" / "registry-min.toml")
     assert prof.name == "registry-min"
     assert prof.tcp_port == 0
+    assert prof.hosting is not None
+    assert prof.hosting.service == "registry"
     assert any(p.name == "agent_runs.recent" for p in prof.plans)
+
+
+def test_profile_loads_control_plane_min():
+    from lis.db.profile import load_profile
+
+    prof = load_profile(LIS_ROOT / "profiles" / "control-plane-min.toml")
+    assert prof.name == "control-plane-min"
+    assert "control-plane" in prof.verticals
+    assert prof.hosting is not None
+    assert prof.hosting.service == "control-plane"
+    names = {p.name for p in prof.plans}
+    assert "control_plane_state.latest" in names
+    assert "agent_runs.recent" in names
+
+
+def test_tcp_wire_stub_profile_documents_not_implemented():
+    from lis.db.profile import load_profile
+
+    prof = load_profile(LIS_ROOT / "profiles" / "tcp-wire-stub.toml")
+    assert prof.tcp_port == 54321
+    assert prof.embed_mode == "tcp_loopback"
 
 
 @pytest.mark.skipif(not _lidb_available(), reason="sibling lidb + cmake required")
@@ -45,14 +68,32 @@ def test_supervisor_start_status_stop(data_dir, monkeypatch):
     sup = DbSupervisor(data_dir=data_dir, profile_name="registry-min")
     state = sup.start()
     assert state["ready"] is True
+    assert state["protocol_version"] == "1"
+    assert state["live"] is True
+    assert state["checks"]["catalog"] == "ok"
     assert state["plans_registered"] >= 1
 
     status = sup.status()
     assert status["ready"] is True
     assert status["migrated"] is True
+    assert status["checks"]["engine"] == "ok"
 
     sup.stop()
     assert not (data_dir / ".lis" / "db-state.json").exists()
+
+
+@pytest.mark.skipif(not _lidb_available(), reason="sibling lidb + cmake required")
+def test_control_plane_min_supervisor(data_dir, monkeypatch):
+    monkeypatch.setenv("LIDB_REPO", str(LIDB_REPO))
+    monkeypatch.setenv("LI_DATA_DIR", str(data_dir))
+    from lis.db.supervisor import DbSupervisor
+
+    sup = DbSupervisor(data_dir=data_dir, profile_name="control-plane-min")
+    state = sup.start()
+    assert state["ready"] is True
+    assert state["service"] == "control-plane"
+    assert state["plans_registered"] >= 5
+    assert "control-plane" in state["verticals"]
 
 
 @pytest.mark.skipif(not _lidb_available(), reason="sibling lidb + cmake required")
@@ -80,3 +121,4 @@ def test_cli_smoke_subprocess(data_dir, monkeypatch):
         ).stdout
     )
     assert payload["migrated"] is True
+    assert payload.get("protocol_version") == "1"

@@ -1,4 +1,4 @@
-"""lis CLI — `lis db` supervisor (PH-DB-3)."""
+"""lis CLI — `lis db` supervisor (PH-DB-3 / WP-I)."""
 
 from __future__ import annotations
 
@@ -15,12 +15,20 @@ def _cmd_db_start(args: argparse.Namespace) -> int:
         data_dir=None if args.data_dir is None else Path(args.data_dir),
         profile_name=args.profile,
     )
+    if args.foreground:
+        try:
+            sup.run_foreground(interval_sec=args.interval)
+        except RuntimeError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        return 0
+
     state = sup.start()
     if args.json:
         print(json.dumps(state, indent=2))
     else:
-        print(f"lis db: ready profile={state['profile']} data_dir={state['data_dir']}")
-    return 0
+        print(f"lis db: ready={state['ready']} profile={state['profile']} data_dir={state['data_dir']}")
+    return 0 if state.get("ready") else 1
 
 
 def _cmd_db_migrate(args: argparse.Namespace) -> int:
@@ -77,8 +85,21 @@ def _build_parser() -> argparse.ArgumentParser:
     common.add_argument("--data-dir", dest="data_dir", default=None, help="LI_DATA_DIR override")
     common.add_argument("--json", action="store_true", help="Machine-readable output")
 
+    start_p = db_sub.add_parser("start", parents=[common], help="lis db start")
+    start_p.add_argument(
+        "--foreground",
+        action="store_true",
+        help="Run until SIGTERM; emit startup JSON then periodic readiness probes (WP-I hosting)",
+    )
+    start_p.add_argument(
+        "--interval",
+        type=int,
+        default=None,
+        help="Foreground probe interval seconds (default: profile hosting.liveness_interval_sec or 30)",
+    )
+    start_p.set_defaults(handler=_cmd_db_start)
+
     for name, handler in (
-        ("start", _cmd_db_start),
         ("migrate", _cmd_db_migrate),
         ("status", _cmd_db_status),
         ("stop", _cmd_db_stop),

@@ -14,6 +14,13 @@ class PlanSpec:
 
 
 @dataclass(frozen=True)
+class HostingSpec:
+    service: str
+    readiness_requires: tuple[str, ...]
+    liveness_interval_sec: int
+
+
+@dataclass(frozen=True)
 class Profile:
     name: str
     search_path: str
@@ -23,6 +30,21 @@ class Profile:
     modules: dict[str, bool]
     verticals: list[str]
     plans: list[PlanSpec]
+    hosting: HostingSpec | None
+
+
+def _parse_hosting(data: dict) -> HostingSpec | None:
+    raw = data.get("hosting")
+    if not raw:
+        return None
+    requires = raw.get("readiness_requires", ["catalog", "engine", "plans"])
+    if isinstance(requires, str):
+        requires = [requires]
+    return HostingSpec(
+        service=str(raw.get("service", "lis-db")),
+        readiness_requires=tuple(str(r) for r in requires),
+        liveness_interval_sec=int(raw.get("liveness_interval_sec", 30)),
+    )
 
 
 def load_profile(path: Path) -> Profile:
@@ -44,4 +66,5 @@ def load_profile(path: Path) -> Profile:
         modules=modules,
         verticals=verticals,
         plans=plans,
+        hosting=_parse_hosting(data),
     )

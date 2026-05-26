@@ -1,0 +1,65 @@
+# WP-G: cross-repo PH-DB gate — lidb embed + lis db supervisor on PR.
+name: PH-DB cross-repo gate
+
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [main, dev]
+  workflow_dispatch:
+    inputs:
+      lidb_ref:
+        description: lidb git ref (branch, tag, or SHA)
+        required: false
+        default: main
+
+concurrency:
+  group: ph-db-cross-repo-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  LIDB_CI_REF: ${{ github.event.inputs.lidb_ref || 'main' }}
+
+jobs:
+  ph-db-cross-repo:
+    name: lidb + lis embed
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: li-langverse/lidb
+          path: lidb
+          ref: ${{ env.LIDB_CI_REF }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install cmake
+        run: sudo apt-get update && sudo apt-get install -y cmake
+
+      - name: lidb smoke + pytest subset
+        working-directory: lidb
+        run: |
+          chmod +x scripts/*.sh
+          bash scripts/ci_ph_db_gate.sh
+
+      - name: Install lis (editable)
+        run: python3 -m pip install -e . -q
+
+      - name: lis db-smoke
+        env:
+          LIDB_REPO: ${{ github.workspace }}/lidb
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/db-smoke.sh
+
+      - name: lis db supervisor pytest
+        env:
+          LIDB_REPO: ${{ github.workspace }}/lidb
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python3 -m pip install pytest -q
+          python3 -m pytest li-tests/test_db_supervisor.py -q --tb=short
