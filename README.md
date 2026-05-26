@@ -8,7 +8,7 @@ Secure-by-design TOML config, optional leak censorship (schema-driven setup), st
 
 **Infrastructure** — packages, harness, and docs are in place; **li-httpd application code** is not started while the Li language surface stabilizes.
 
-**PH-DB-3 (`lis db`)** — embedded **lidb** supervisor (`start|migrate|status|stop`) with `registry-min` profile is available; see [docs/db.md](docs/db.md).
+**PH-DB-3 / WP-I (`lis db`)** — embedded **lidb** supervisor (`start|migrate|status|stop`) with `registry-min` and `control-plane-min` hosting profiles; see [docs/db.md](docs/db.md) and [profiles/README.md](profiles/README.md).
 
 | Branch | Use |
 |--------|-----|
