@@ -1,0 +1,17 @@
+name = "static_large"
+
+[server]
+listen = ":8080"
+workers = 1
+
+[verify]
+requests = [
+  { method = "GET", path = "/file.bin", expect_status = 200 },
+]
+
+[load]
+tool = "wrk"
+url_path = "/file.bin"
+duration_sec = 10
+connections = 8
+threads = 2

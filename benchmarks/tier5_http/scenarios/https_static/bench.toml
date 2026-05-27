@@ -1,8 +1,11 @@
-name = "keepalive_pipelining"
+name = "https_static"
 
 [server]
-listen = ":8080"
+listen = ":8443"
 workers = 1
+
+[tls]
+enabled = true
 
 [verify]
 requests = [
@@ -11,7 +14,7 @@ requests = [
 
 [load]
 tool = "wrk"
+url_path = "/"
 duration_sec = 10
-connections = 16
+connections = 8
 threads = 2
-pipeline = 8

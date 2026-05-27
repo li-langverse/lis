@@ -2,9 +2,8 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 HARNESS="$ROOT/benchmarks/tier5_http/harness"
-export PYTHONPATH="$HARNESS${PYTHONPATH:+:$PYTHONPATH}"
-cd "$HARNESS"
-python3 verify_http.py --all --profile ci
-python3 exploit_http.py --profile pr
-python3 bench_http.py static_small --profile ci
+CSV="$ROOT/benchmarks/results/verify-http.csv"
+python3 "$HARNESS/bench_http.py" --profile ci --no-bench --csv "$CSV"
+python3 "$HARNESS/exploit_http.py" --profile pr
+test -s "$CSV"
 echo "verify-http: OK"

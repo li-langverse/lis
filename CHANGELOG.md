@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **tier5_http:** multi-oracle `bench_http.py` + measured `benchmarks/results/latest.csv` (WP6 fill-all) — [2026-05-25-tier5-http-csv-full.md](docs/release-notes/2026-05-25-tier5-http-csv-full.md).
+
 ### Added
 
 <<<<<<< HEAD

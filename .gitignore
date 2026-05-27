@@ -3,6 +3,8 @@ build/
 build-*/
 dist/
 benchmarks/results/**/*.csv
+!benchmarks/results/latest.csv
+!benchmarks/results/exploit_report.csv
 benchmarks/results/share/*.png
 benchmarks/results/share/*.gif
 benchmarks/results/**/traj_*.txt

@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+HARNESS="$ROOT/benchmarks/tier5_http/harness/bench_http.py"
+PROFILE="${BENCH_HTTP_PROFILE:-nightly}"
+export BENCH_PROXY_ORACLES="${BENCH_PROXY_ORACLES:-nginx,apache,lighttpd,caddy,li}"
+LIC_ROOT="${LIC_ROOT:-$ROOT/../lic}"
+export LI_HTTPD_BIN="${LI_HTTPD_BIN:-$LIC_ROOT/build/li-httpd}"
+export LIC_ROOT BENCH_HTTP_ORACLES="${BENCH_HTTP_ORACLES:-nginx,apache,lighttpd,node,bun,li}"
+export BENCH_HTTP_QUICK_SEC="${BENCH_HTTP_QUICK_SEC:-}"
+CSV_OUT="${TIER5_HTTP_CSV:-$ROOT/benchmarks/results/latest.csv}"
+mkdir -p "$(dirname "$CSV_OUT")"
+python3 "$HARNESS" --profile "$PROFILE" --csv "$CSV_OUT"
+test -s "$CSV_OUT"
+echo "run-tier5-http-bench: ok (profile=$PROFILE, csv=$CSV_OUT)"
