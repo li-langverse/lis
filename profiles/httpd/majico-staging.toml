@@ -1,0 +1,68 @@
+# Majico staging edge — multi-site li-httpd TOML (Caddy bridge until li-httpd M1).
+# Set MAJICO_STAGING_*_HOST in deploy/staging/.env before `lis staging up`.
+
+[upstreams.majico_web]
+peers = ["http://majico-web:3000"]
+
+[upstreams.supabase_kong]
+peers = ["http://kong:8000"]
+
+[upstreams.pulse_web]
+peers = ["http://pulse-web:3000"]
+
+[[site]]
+host = "api.staging.majico.example"
+listen = ":443"
+tls = "lets_encrypt"
+
+[site.limits]
+max_body = "10m"
+
+[site.routes]
+"GET /health" = "static:healthcheck"
+"OPTIONS /auth/v1/*" = "proxy:supabase_kong"
+"GET /auth/v1/*" = "proxy:supabase_kong"
+"POST /auth/v1/*" = "proxy:supabase_kong"
+"PATCH /auth/v1/*" = "proxy:supabase_kong"
+"DELETE /auth/v1/*" = "proxy:supabase_kong"
+"OPTIONS /rest/v1/*" = "proxy:supabase_kong"
+"GET /rest/v1/*" = "proxy:supabase_kong"
+"POST /rest/v1/*" = "proxy:supabase_kong"
+"PATCH /rest/v1/*" = "proxy:supabase_kong"
+"DELETE /rest/v1/*" = "proxy:supabase_kong"
+"OPTIONS /realtime/v1/*" = "proxy:supabase_kong"
+"GET /realtime/v1/*" = "proxy:supabase_kong"
+"POST /realtime/v1/*" = "proxy:supabase_kong"
+
+[[site]]
+host = "staging.majico.example"
+listen = ":443"
+tls = "lets_encrypt"
+
+[site.limits]
+max_body = "25m"
+
+[site.routes]
+"GET /health" = "static:healthcheck"
+"GET /api/health" = "static:healthcheck"
+"GET /*" = "proxy:majico_web"
+"POST /*" = "proxy:majico_web"
+"PUT /*" = "proxy:majico_web"
+"PATCH /*" = "proxy:majico_web"
+"DELETE /*" = "proxy:majico_web"
+"HEAD /*" = "proxy:majico_web"
+
+[[site]]
+host = "pulse.staging.majico.example"
+listen = ":443"
+tls = "lets_encrypt"
+
+[site.limits]
+max_body = "10m"
+
+[site.routes]
+"GET /health" = "static:healthcheck"
+"GET /*" = "proxy:pulse_web"
+"POST /*" = "proxy:pulse_web"
+"PATCH /*" = "proxy:pulse_web"
+"DELETE /*" = "proxy:pulse_web"

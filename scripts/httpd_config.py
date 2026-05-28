@@ -32,6 +32,16 @@ class CanonicalRoute:
     priority: int
 
 
+@dataclass
+class HttpdConfig:
+    listen: str
+    host: str
+    tls: str | None
+    max_body: str | None
+    upstreams: dict[str, list[str]]
+    routes: list[CanonicalRoute]
+
+
 def slug_route_name(method: str, path: str) -> str:
     s = f"{method.lower()}_{path.strip('/')}".replace("/", "_").replace("*", "wild")
     s = re.sub(r"[^a-z0-9_]+", "_", s).strip("_")
@@ -108,11 +118,107 @@ def validate_routes(routes: list[CanonicalRoute]) -> None:
                 )
 
 
+def parse_upstreams(data: dict[str, Any]) -> dict[str, list[str]]:
+    raw = data.get("upstreams")
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ConfigError("[upstreams] must be a table")
+    out: dict[str, list[str]] = {}
+    for upstream_id, spec in raw.items():
+        if not isinstance(spec, dict):
+            raise ConfigError(f"[upstreams.{upstream_id}] must be a table")
+        peers = spec.get("peers")
+        if not isinstance(peers, list) or not peers:
+            raise ConfigError(f"[upstreams.{upstream_id}] peers required")
+        out[str(upstream_id)] = [str(p).strip() for p in peers]
+    return out
+
+
 def load_httpd_config(path: Path) -> list[CanonicalRoute]:
+    return load_httpd_full(path).routes
+
+
+def load_httpd_sites(path: Path) -> list[HttpdConfig]:
     data = tomllib.loads(path.read_text(encoding="utf-8"))
+    sites_raw = data.get("site")
+    if sites_raw is None:
+        return [load_httpd_full(path)]
+    if not isinstance(sites_raw, list):
+        raise ConfigError("[[site]] must be an array of tables")
+    upstreams = parse_upstreams(data)
+    out: list[HttpdConfig] = []
+    for i, site in enumerate(sites_raw):
+        if not isinstance(site, dict):
+            raise ConfigError(f"[[site]] entry {i} must be a table")
+        host = str(site.get("host", "")).strip()
+        if not host:
+            raise ConfigError(f"[[site]] entry {i}: host required")
+        listen = str(site.get("listen", ":443"))
+        tls = site.get("tls")
+        tls_s = str(tls).strip() if tls is not None else None
+        limits = site.get("limits") or {}
+        max_body = None
+        if isinstance(limits, dict) and limits.get("max_body") is not None:
+            max_body = str(limits["max_body"])
+        routes_tbl = site.get("routes") or {}
+        fake = {"routes": routes_tbl}
+        routes = desugar_config(fake)
+        validate_routes(routes)
+        for r in routes:
+            if r.action.startswith("proxy:"):
+                uid = r.action.split(":", 1)[1]
+                if uid not in upstreams:
+                    raise ConfigError(f"unknown upstream {uid!r} for site {host}")
+        out.append(
+            HttpdConfig(
+                listen=listen,
+                host=host,
+                tls=tls_s,
+                max_body=max_body,
+                upstreams=upstreams,
+                routes=routes,
+            )
+        )
+    return out
+
+
+def load_httpd_full(path: Path) -> HttpdConfig:
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    if data.get("site") is not None:
+        sites = load_httpd_sites(path)
+        if len(sites) != 1:
+            raise ConfigError("use load_httpd_sites() for multi-site profiles")
+        return sites[0]
+    server = data.get("server") or {}
+    if not isinstance(server, dict):
+        raise ConfigError("[server] must be a table")
+    listen = str(server.get("listen", ":8080"))
+    host = str(server.get("host", "")).strip()
+    if not host:
+        raise ConfigError("[server].host required for edge render")
+    tls = server.get("tls")
+    tls_s = str(tls).strip() if tls is not None else None
+    limits = data.get("limits") or {}
+    max_body = None
+    if isinstance(limits, dict) and limits.get("max_body") is not None:
+        max_body = str(limits["max_body"])
     routes = desugar_config(data)
     validate_routes(routes)
-    return routes
+    upstreams = parse_upstreams(data)
+    for r in routes:
+        if r.action.startswith("proxy:"):
+            uid = r.action.split(":", 1)[1]
+            if uid not in upstreams:
+                raise ConfigError(f"unknown upstream {uid!r} for route {r.name}")
+    return HttpdConfig(
+        listen=listen,
+        host=host,
+        tls=tls_s,
+        max_body=max_body,
+        upstreams=upstreams,
+        routes=routes,
+    )
 
 
 def explain(routes: list[CanonicalRoute]) -> str:

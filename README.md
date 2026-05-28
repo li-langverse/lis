@@ -35,6 +35,16 @@ export LI_PROFILE=registry-min
 
 See [docs/cli-db.md](docs/cli-db.md) and [profiles/registry-min.toml](profiles/registry-min.toml).
 
+## Staging (Majico / containers)
+
+Self-hosted VPS staging without Supabase Cloud: validated **li-httpd TOML** → **Caddy** edge, Docker Compose for app containers.
+
+```bash
+./scripts/install-lis.sh
+lis http validate profiles/httpd/majico-staging.toml
+# see docs/staging-majico.md
+```
+
 ## Docs
 
 - [docs/index.md](docs/index.md) — overview

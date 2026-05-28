@@ -1,0 +1,5 @@
+# Minimal Kong declarative stub for staging smoke tests.
+# Replace with output from official Supabase docker init before production traffic.
+_format_version: "2.1"
+_transform: true
+services: []

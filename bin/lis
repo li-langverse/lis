@@ -15,6 +15,10 @@ Usage:
   lis db stop
   lis db status
   lis db migrate [--to REV]
+  lis http validate <config.toml>
+  lis http render-caddy <config.toml> [-o PATH]
+  lis staging up [--with-supabase]
+  lis staging down
 
 Environment (db subcommands):
   LI_DATA_DIR   Data directory (default: ~/.local/share/lis/data)
@@ -198,12 +202,90 @@ lis_db_migrate() {
   echo "migrate_stub_${to_rev}" >"${data_dir}/.lis-db-migrate-stub"
 }
 
+lis_http_validate() {
+  local cfg="$1"
+  export PYTHONPATH="${LIS_ROOT}/scripts${PYTHONPATH:+:$PYTHONPATH}"
+  python3 "${LIS_ROOT}/scripts/httpd_config.py" "$cfg"
+}
+
+lis_http_render_caddy() {
+  local cfg="$1"
+  shift
+  local out=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -o|--output) out="$2"; shift 2 ;;
+      *) echo "lis http render-caddy: unknown $1" >&2; exit 1 ;;
+    esac
+  done
+  export PYTHONPATH="${LIS_ROOT}/scripts${PYTHONPATH:+:$PYTHONPATH}"
+  if [[ -n "$out" ]]; then
+    python3 "${LIS_ROOT}/scripts/httpd_render_caddy.py" "$cfg" -o "$out"
+  else
+    python3 "${LIS_ROOT}/scripts/httpd_render_caddy.py" "$cfg"
+  fi
+}
+
+lis_staging_up() {
+  local with_sb=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --with-supabase) with_sb=1; shift ;;
+      *) echo "lis staging up: unknown $1" >&2; exit 1 ;;
+    esac
+  done
+  export LI_STAGING_WITH_SUPABASE="$with_sb"
+  bash "${LIS_ROOT}/scripts/staging-up.sh"
+}
+
+lis_staging_down() {
+  local staging_dir="${LIS_ROOT}/deploy/staging"
+  local files=(-f docker-compose.yml)
+  if [[ "${LI_STAGING_WITH_SUPABASE:-0}" == "1" ]]; then
+    files+=(-f docker-compose.supabase.yml)
+  fi
+  cd "$staging_dir"
+  if docker compose version >/dev/null 2>&1; then
+    docker compose "${files[@]}" down
+  else
+    docker-compose "${files[@]}" down
+  fi
+}
+
 main() {
   if [[ $# -lt 1 ]]; then
     lis_usage
     exit 1
   fi
   case "$1" in
+    http)
+      shift
+      [[ $# -ge 1 ]] || { lis_usage; exit 1; }
+      case "$1" in
+        validate)
+          shift
+          [[ $# -ge 1 ]] || { echo "lis http validate: config.toml required" >&2; exit 1; }
+          lis_http_validate "$1"
+          ;;
+        render-caddy)
+          shift
+          [[ $# -ge 1 ]] || { echo "lis http render-caddy: config.toml required" >&2; exit 1; }
+          local cfg="$1"
+          shift
+          lis_http_render_caddy "$cfg" "$@"
+          ;;
+        *) echo "lis http: unknown subcommand: $1" >&2; lis_usage; exit 1 ;;
+      esac
+      ;;
+    staging)
+      shift
+      [[ $# -ge 1 ]] || { lis_usage; exit 1; }
+      case "$1" in
+        up) shift; lis_staging_up "$@" ;;
+        down) lis_staging_down ;;
+        *) echo "lis staging: unknown subcommand: $1" >&2; lis_usage; exit 1 ;;
+      esac
+      ;;
     db)
       shift
       [[ $# -ge 1 ]] || { lis_usage; exit 1; }
@@ -228,7 +310,7 @@ main() {
       esac
       ;;
     -h|--help|help) lis_usage ;;
-    *) echo "lis: unknown command: $1 (only 'db' implemented)" >&2; lis_usage; exit 1 ;;
+    *) echo "lis: unknown command: $1" >&2; lis_usage; exit 1 ;;
   esac
 }
 
