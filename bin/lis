@@ -227,29 +227,14 @@ lis_http_render_caddy() {
 }
 
 lis_staging_up() {
-  local with_sb=0
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      --with-supabase) with_sb=1; shift ;;
-      *) echo "lis staging up: unknown $1" >&2; exit 1 ;;
-    esac
-  done
-  export LI_STAGING_WITH_SUPABASE="$with_sb"
-  bash "${LIS_ROOT}/scripts/staging-up.sh"
+  echo "lis staging: application stacks live in your app repo (e.g. cap-jmk-launchpad/majico.xyz deploy/staging)." >&2
+  echo "See https://github.com/cap-jmk-launchpad/majico.xyz/tree/main/deploy/staging" >&2
+  exit 1
 }
 
 lis_staging_down() {
-  local staging_dir="${LIS_ROOT}/deploy/staging"
-  local files=(-f docker-compose.yml)
-  if [[ "${LI_STAGING_WITH_SUPABASE:-0}" == "1" ]]; then
-    files+=(-f docker-compose.supabase.yml)
-  fi
-  cd "$staging_dir"
-  if docker compose version >/dev/null 2>&1; then
-    docker compose "${files[@]}" down
-  else
-    docker-compose "${files[@]}" down
-  fi
+  echo "lis staging down: use podman compose in your application deploy/staging directory." >&2
+  exit 1
 }
 
 main() {
