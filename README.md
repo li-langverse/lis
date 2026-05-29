@@ -37,6 +37,8 @@ See [docs/cli-db.md](docs/cli-db.md) and [profiles/registry-min.toml](profiles/r
 
 ## Docs
 
+- [Published handbook (lis)](https://li-langverse.github.io/li-language/ecosystem/lis/) — org status on **li-language** Pages (after **lic** deploy)
+- [docs/handbook.md](docs/handbook.md) — cross-links to master plan and provability gaps
 - [docs/index.md](docs/index.md) — overview
 - [docs/plan.md](docs/plan.md) — full design
 - [docs/packages/](docs/packages/) — per-package function catalogs
