@@ -41,8 +41,6 @@ Self-hosted VPS staging without Supabase Cloud: validated **li-httpd TOML** → 
 
 ```bash
 ./scripts/install-lis.sh
-lis http validate profiles/httpd/majico-staging.toml
-# see docs/staging-majico.md
 ```
 
 ## Docs
