@@ -29,8 +29,41 @@ Environment (db subcommands):
   LI_REALTIME_PORT WebSocket Realtime (default: 54323; stack-full profile)
   LI_REALTIME_API  Start Realtime WS on db start (default: 1 for stack-full)
 
-PH-DB-3/4/N3: CLI + registry REST + Realtime WS stub; lidb in-process lands after WP1.
+PH-DB-3/4: CLI + registry REST + Realtime WS; lidb native embed via lidb_embed (no loopback TCP for registry-min).
 EOF
+}
+
+
+lis_lidb_root() {
+  if [[ -n "${LIDB_ROOT:-}" && -d "${LIDB_ROOT}" ]]; then
+    echo "${LIDB_ROOT}"
+    return 0
+  fi
+  if [[ -d "${LIS_ROOT}/../lidb" ]]; then
+    echo "${LIS_ROOT}/../lidb"
+    return 0
+  fi
+  echo ""
+}
+
+lis_db_engine_ensure() {
+  local data_dir="$1"
+  local root
+  root="$(lis_lidb_root)"
+  if [[ -z "$root" ]]; then
+    echo "lis db: lidb checkout not found (set LIDB_ROOT)" >&2
+    return 1
+  fi
+  export LIDB_ROOT="$root"
+  export LIDB_DATA_DIR="$data_dir"
+  export LI_DATA_DIR="$data_dir"
+  export PYTHONPATH="${root}${PYTHONPATH:+:$PYTHONPATH}"
+  if ! python3 "${LIS_ROOT}/scripts/lidb_engine.py" ensure "$data_dir" >/dev/null; then
+    echo "lis db: native lidb embed failed (build lidb_embed in ${root})" >&2
+    return 1
+  fi
+  echo "native" >"${data_dir}/.lis-db-engine-ready"
+  return 0
 }
 
 lis_db_start() {
@@ -48,18 +81,20 @@ lis_db_start() {
     exit 0
   fi
 
-  echo "lis db start (stub): profile=${profile} data_dir=${data_dir} api=${api_port} db=${db_port}"
+  echo "lis db start: profile=${profile} data_dir=${data_dir} api=${api_port} db=${db_port}"
   echo "  verticals: see profiles/${profile}.toml"
-  echo "  lidb: interface contract only — awaiting WP1 (li-langverse/lidb)"
-  # Placeholder supervisor: records intent; real bundle links lidb in-process via lis_supervisor.
-  echo "stub" >"${data_dir}/.lis-db-stub"
+  if ! lis_db_engine_ensure "$data_dir"; then
+    exit 1
+  fi
+  export PYTHONPATH="${LIS_ROOT}${PYTHONPATH:+:$PYTHONPATH}"
+  python3 -c "from routes.registry.plans import ensure_registry_plans; ensure_registry_plans()" 2>/dev/null || true
   echo "profile=${profile}" >"${data_dir}/.lis-db-profile"
   echo "api_port=${api_port}" >"${data_dir}/.lis-db-ports"
   echo "db_port=${db_port}" >>"${data_dir}/.lis-db-ports"
   echo "realtime_port=${realtime_port}" >>"${data_dir}/.lis-db-ports"
   if [[ "$foreground" == "--foreground" ]]; then
-    echo "lis db: foreground stub — Ctrl+C to stop"
-    trap 'rm -f "'"${pid_file}"'" "'"${data_dir}/.lis-db-stub"'"' EXIT
+    echo "lis db: foreground — Ctrl+C to stop"
+    trap 'rm -f "'"${pid_file}"'" "'"${data_dir}/.lis-db-engine-ready"'"' EXIT
     echo $$ >"$pid_file"
     while true; do sleep 3600; done
   else
@@ -68,7 +103,7 @@ lis_db_start() {
       while true; do sleep 3600; done
     ) &
     echo $! >"$pid_file"
-    echo "lis db: stub supervisor pid $(cat "$pid_file")"
+    echo "lis db: supervisor pid $(cat "$pid_file") (lidb native embed)"
   fi
   if [[ "${LI_REGISTRY_API:-1}" != "0" ]]; then
     lis_registry_api_start "$api_port" "$data_dir"
@@ -156,7 +191,7 @@ lis_db_stop() {
     kill "$(cat "$rt_pid")" 2>/dev/null || true
     echo "lis realtime WS: stopped pid $(cat "$rt_pid")"
   fi
-  rm -f "$pid_file" "$reg_pid" "$rt_pid" "${data_dir}/.lis-db-stub" "${data_dir}/.lis-db-profile" "${data_dir}/.lis-db-ports"
+  rm -f "$pid_file" "$reg_pid" "$rt_pid" "${data_dir}/.lis-db-engine-ready" "${data_dir}/.lis-db-profile" "${data_dir}/.lis-db-ports"
 }
 
 lis_db_status() {
@@ -172,7 +207,11 @@ lis_db_status() {
   echo "api_port:    ${api_port}"
   echo "db_port:     ${db_port}"
   echo "realtime_port: ${realtime_port}"
-  echo "lidb_link:   stub (WP1 pending)"
+  if [[ -f "${data_dir}/.lis-db-engine-ready" ]]; then
+    echo "lidb_link:   native (in-process embed via lidb_embed)"
+  else
+    echo "lidb_link:   unavailable"
+  fi
   local reg_pid="${data_dir}/lis-registry-api.pid"
   if [[ -f "$reg_pid" ]] && kill -0 "$(cat "$reg_pid")" 2>/dev/null; then
     echo "registry_api: running (pid $(cat "$reg_pid"), http://127.0.0.1:${api_port}/v1)"
@@ -186,7 +225,7 @@ lis_db_status() {
     echo "realtime_ws: stopped"
   fi
   if [[ -f "$pid_file" ]] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then
-    echo "state:       running (pid $(cat "$pid_file"), stub supervisor)"
+    echo "state:       running (pid $(cat "$pid_file"), lidb supervisor)"
   else
     echo "state:       stopped"
   fi
@@ -196,10 +235,13 @@ lis_db_migrate() {
   local profile="${LI_PROFILE:-registry-min}"
   local data_dir="${LI_DATA_DIR:-${HOME}/.local/share/lis/data}"
   local to_rev="${1:-head}"
-  echo "lis db migrate (stub): profile=${profile} to=${to_rev}"
-  echo "  expected: lidb migrations/001_registry.sql (WP1) applied in-process"
+  echo "lis db migrate: profile=${profile} to=${to_rev}"
   mkdir -p "$data_dir"
-  echo "migrate_stub_${to_rev}" >"${data_dir}/.lis-db-migrate-stub"
+  if ! lis_db_engine_ensure "$data_dir"; then
+    exit 1
+  fi
+  echo "${to_rev}" >"${data_dir}/.lis-db-migrate-rev"
+  echo "lis db migrate: applied native bootstrap to ${to_rev}"
 }
 
 lis_http_validate() {

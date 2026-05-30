@@ -52,9 +52,19 @@ def _run_plan(plan_id: str, params: dict[str, Any]) -> dict[str, Any]:
     return {"plan_id": result.plan_id, "rows": result.rows}
 
 
+def _engine_ready() -> bool:
+    try:
+        from liorm import embed_engine
+
+        return embed_engine.engine_ready()
+    except Exception:
+        return False
+
+
+
 class LiormRegistryStore:
     """
-    Registry API via liorm plans; persists through JSON until lidb engine returns rows.
+    Registry API via liorm plans; uses native lidb when embed_engine is ready, else JSON backing.
 
     Each mutating/read path calls `execute` for param binding + audit, then applies
     the same semantics as the PH-DB-4 mock store on local state (WP1 engine swap).
@@ -73,7 +83,7 @@ class LiormRegistryStore:
 
     @property
     def engine_stub(self) -> bool:
-        return True
+        return not _engine_ready()
 
     def list_packages(
         self,
