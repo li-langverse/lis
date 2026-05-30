@@ -2,6 +2,8 @@
 
 **li-httpd** — proved AI/agent HTTP gateway written in [Li](https://github.com/li-langverse/li).
 
+**Live handbook:** https://li-langverse.github.io/lis/ · [docs/handbook.md](docs/handbook.md)
+
 Secure-by-design TOML config, optional leak censorship (schema-driven setup), streaming SSE, rate limits, and cross-platform CI.
 
 ## Status
