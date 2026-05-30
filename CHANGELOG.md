@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Handbook (Pages):** `docs/handbook.md`, `site/index.html`, GitHub Pages workflow — [2026-05-30-handbook-pages.md](docs/release-notes/2026-05-30-handbook-pages.md).
 - **PH-DB-4:** `docs/production-registry.md` host runbook (env template, `registry-min`, TLS via li-httpd) — [2026-05-25-production-registry.md](docs/release-notes/2026-05-25-production-registry.md).
 - **WP-N3 / PH-DB:** `routes/realtime/` Phoenix v1.0.0 WebSocket, native `lidb_changefeed_poll` with JSONL fallback (`LI_CHANGEFEED_NATIVE=0`), JWT+RLS delivery filter, `profiles/stack-full.toml`, `tests/realtime-ws.test`, `docs/realtime.md` — blocked on [lidb#11](https://github.com/li-langverse/lidb/pull/11).
 - **PH-DB-4:** `routes/registry/` REST handlers (list/get/publish/yank), `openapi/registry-v1.yaml`, mock liorm store, `tests/registry-api.test`, registry API on `lis db start`.
