@@ -1,0 +1,39 @@
+# PH-DB WP-H: local dev stack — lis db + optional Postgres oracle for bench.
+services:
+  lis-db:
+    build:
+      context: ..
+      dockerfile: lis/docker/Dockerfile.supervisor
+    volumes:
+      - li-data:/data
+    environment:
+      LI_DATA_DIR: /data
+      LIDB_ROOT: /opt/lidb
+      LIDB_EMBED: /opt/lidb/build/smoke/lidb_embed
+      LI_REGISTRY_API: "0"
+    ports:
+      - "54321:54321"
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "/opt/lis/bin/lis db status | grep -q 'lidb_link:.*native'"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  postgres-oracle:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: bench
+      POSTGRES_PASSWORD: bench
+      POSTGRES_DB: registry_bench
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bench -d registry_bench"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    profiles: ["bench"]
+
+volumes:
+  li-data:

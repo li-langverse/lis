@@ -1,0 +1,12 @@
+[package]
+name = "lis-cli"
+version = "0.1.0"
+edition = "2026"
+description = "Installable wrapper for li-langverse/lis supervisor + staging edge scripts"
+license = "GPL-3.0-or-later"
+
+[package.repository]
+url = "https://github.com/li-langverse/lis"
+
+[dependencies]
+lis = { git = "https://github.com/li-langverse/lis.git", tag = "main" }

@@ -13,8 +13,7 @@ if [[ -x "${VENV}/bin/python" ]]; then
 elif [[ -x "${VENV}/Scripts/python.exe" ]]; then
   PY="${VENV}/Scripts/python.exe"
 else
-  echo "realtime-ws: missing venv python under ${VENV}" >&2
-  exit 1
+  PY="python3"
 fi
 
 export LI_DATA_DIR="${TMPDIR:-/tmp}/lis-realtime-ws-$$"
