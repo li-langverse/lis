@@ -1,0 +1,30 @@
+# PH-DB WP-H: lis db supervisor + native lidb embed (dev/CI).
+FROM ubuntu:24.04
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash ca-certificates cmake g++ git python3 python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt
+COPY lidb /opt/lidb
+COPY lis /opt/lis
+
+RUN cmake -S /opt/lidb -B /opt/lidb/build/smoke -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build /opt/lidb/build/smoke --target lidb_embed -j$(nproc)
+
+ENV LIS_ROOT=/opt/lis
+ENV LIDB_ROOT=/opt/lidb
+ENV LIDB_EMBED=/opt/lidb/build/smoke/lidb_embed
+ENV LI_DATA_DIR=/data
+ENV LIDB_DATA_DIR=/data
+ENV PATH="/opt/lis/bin:${PATH}"
+
+RUN chmod +x /opt/lis/bin/lis
+
+VOLUME ["/data"]
+EXPOSE 54321
+
+HEALTHCHECK --interval=5s --timeout=3s --retries=12 \
+  CMD bash -lc 'test -f /data/.lis-db-engine-ready && /opt/lis/bin/lis db status | grep -q native'
+
+CMD ["bash", "-lc", "/opt/lis/bin/lis db start --foreground"]

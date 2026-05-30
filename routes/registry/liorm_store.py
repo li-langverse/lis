@@ -62,6 +62,24 @@ def _engine_ready() -> bool:
 
 
 
+def _rows_to_packages(rows: list[dict[str, Any]], *, limit: int, offset: int) -> dict[str, Any]:
+    packages: list[dict[str, Any]] = []
+    for row in rows[offset : offset + limit]:
+        packages.append(
+            {
+                "name": row.get("name") or row.get("p_name") or "",
+                "version": row.get("version") or "",
+                "tree_digest": row.get("tree_digest") or "",
+                "proof_digest": row.get("proof_digest") or "",
+                "coverage_pct": float(row.get("coverage_pct") or 0),
+                "published_at": row.get("published_at") or "",
+                "yanked": bool(row.get("yanked") in (True, "1", 1, "true")),
+            }
+        )
+    return {"packages": packages, "count": len(packages)}
+
+
+
 class LiormRegistryStore:
     """
     Registry API via liorm plans; uses native lidb when embed_engine is ready, else JSON backing.
@@ -95,7 +113,7 @@ class LiormRegistryStore:
     ) -> dict[str, Any]:
         limit = max(1, min(limit, 500))
         offset = max(0, offset)
-        _run_plan(
+        out = _run_plan(
             PLAN_LIST_PACKAGES,
             {
                 "name": name,
@@ -104,6 +122,8 @@ class LiormRegistryStore:
                 "offset": offset,
             },
         )
+        if _engine_ready() and out.get("rows"):
+            return _rows_to_packages(out["rows"], limit=limit, offset=0)
         return self._backing.list_packages(
             name=name,
             limit=limit,
@@ -112,7 +132,18 @@ class LiormRegistryStore:
         )
 
     def get_package_version(self, name: str, version: str) -> dict[str, Any]:
-        _run_plan(PLAN_GET_VERSION, {"name": name, "version": version})
+        out = _run_plan(PLAN_GET_VERSION, {"name": name, "version": version})
+        if _engine_ready() and out.get("rows"):
+            row = out["rows"][0]
+            return {
+                "name": row.get("name") or name,
+                "version": row.get("version") or version,
+                "tree_digest": row.get("tree_digest") or "",
+                "proof_digest": row.get("proof_digest") or "",
+                "coverage_pct": float(row.get("coverage_pct") or 0),
+                "published_at": row.get("published_at") or "",
+                "yanked": bool(row.get("yanked") in (True, "1", 1, "true")),
+            }
         return self._backing.get_package_version(name, version)
 
     def publish(self, name: str, body: dict[str, Any], *, token: str | None) -> dict[str, Any]:
