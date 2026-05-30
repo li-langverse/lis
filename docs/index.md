@@ -10,6 +10,10 @@
 | **`lis db` (PH-DB-3)** | Embedded [lidb](https://github.com/li-langverse/lidb) supervisor — see [db.md](db.md) |
 | **li-httpd** | Blocked on Li language/compiler stabilization ([li-langverse/li](https://github.com/li-langverse/li)) |
 
+## Live handbook
+
+https://li-langverse.github.io/lis/ · [docs/handbook.md](handbook.md)
+
 ## Quick links
 
 | Doc | Content |
