@@ -35,7 +35,23 @@ if [[ -x "$PY" ]] && "$PY" -c "import websockets" 2>/dev/null; then
   fi
   return 0
 fi
-python3 -m venv "$VENV"
+if python3 -c "import websockets" 2>/dev/null; then
+  echo "lis: websockets available on system python"
+  if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    exit 0
+  fi
+  return 0
+fi
+if ! python3 -m venv "$VENV" 2>/dev/null; then
+  rm -rf "$VENV"
+  python3 -m pip install -q --user --break-system-packages websockets 2>/dev/null || python3 -m pip install -q --user websockets
+  python3 -c "import websockets"
+  echo "lis: websockets via user pip (venv unavailable)"
+  if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    exit 0
+  fi
+  return 0
+fi
 PY="$(realtime_venv_python "$VENV")"
 PIP="$(realtime_venv_pip "$VENV")"
 "$PIP" install -q websockets
