@@ -1,13 +1,23 @@
 [package]
-name = "li-httpd"
-version = "0.0.0-infra"
-license = "GPL-3.0-or-later"
-description = "li-httpd gateway binary (not built in infra-only phase)."
+name = "li-net-httpd"
+version = "0.1.0"
+edition = "2026"
+license = "Apache-2.0 OR MIT"
+description = "Li package li-httpd"
 
 [dependencies]
-li-http = { path = "../li-http" }
 li-net = { path = "../li-net" }
-li-log = { path = "../li-log" }
+# path = { path = "../other" }   # lip 8b+
+# registry = "1.0.0"             # lip 8d+
 
-[workspace]
-members = ["../li-http", "../li-net", "../li-log"]
+[package.metadata.li]
+github_repo = "li-net-httpd"
+import_name = "net.httpd"
+min_lic = "0.1.0"
+maintainer = "li-langverse"
+pkg_id = "PKG-li-net-httpd"
+
+[package.repository]
+url = "https://github.com/li-langverse/li-net-httpd"
+documentation = "https://li-langverse.github.io/li-language/ecosystem/li-net-httpd/"
+changelog = "https://github.com/li-langverse/li-net-httpd/blob/main/CHANGELOG.md"
