@@ -1,70 +1,49 @@
-# Li Data Studio UI (PH-DB-11)
+﻿# Li Data Studio UI (PH-DB-13 phase 1)
 
-Supabase Studio–aligned web console for **`lis db`** and **lidb**. Part of epic PH-DB-11; plan in [lic](https://github.com/li-langverse/lic/blob/main/docs/superpowers/plans/ph-db-11-li-data-studio.md).
+Supabase Studio–aligned cloud console for **project-scoped lidb** stacks. Replaces agent control-plane UI with org → project → database workflow.
 
 ## Quick start
 
 ```bash
-# From lis repo root — start data platform
-export LI_DATA_DIR="${HOME}/.local/share/lis/data"
-export LI_PROFILE=registry-min
-export LIDB_ROOT="../lidb"   # sibling lidb checkout
-./bin/lis db start
-
 cd data-studio-ui
 npm install
 npm run dev
 ```
 
-Open http://localhost:54324
+Open http://localhost:54324 — create a project, click **Launch database**, then open Database / SQL.
 
-| Tab | Status |
-|-----|--------|
-| **Database** | Live `lis db status` + catalog table browser + read-only row viewer |
-| **SQL Editor** | Read-only SELECT runner + CSV export |
-| **Authentication** | Registry health + published packages grid + RLS doc links |
-| **Storage** | Honest “not configured” for registry-min |
-| **Realtime** | Supervisor status for WS :54323 |
-| **Logs** | Tail changefeed JSONL / supervisor logs from `LI_DATA_DIR` |
-| **Settings** | Profile, ports, masked JWT secret, RLS/storage flags |
+### Prerequisites for Launch database
 
-## Docker (optional)
+- `LIS_ROOT` points to your lis checkout (default: parent of data-studio-ui)
+- `LIDB_ROOT` points to a built lidb with native embed
+- **Windows:** set `LIS_DB_STATUS_SHELL=bash` and run the dev server from Git Bash/WSL
 
-With the PH-DB compose stack running:
+Each project gets its own `LI_DATA_DIR` under `~/.local/share/lis/studio/projects/<id>/data` and dedicated ports (from 55000+).
 
-```bash
-docker compose -f docker-compose.ph-db.yml up -d
-cd data-studio-ui && npm install && npm run dev
-```
+## Flow
 
-Set `LIS_ROOT`, `LI_DATA_DIR`, and `LIDB_ROOT` to match the container layout when the UI runs on the host against a Dockerized lis-db.
+| Step | UI |
+|------|-----|
+| Projects landing | `/` — list + **New project** |
+| Create | name + region stub |
+| Project dashboard | `/projects/:id` — **Launch database**, status cards |
+| Studio tabs | Database, SQL Editor, Settings (project-scoped) |
 
 ## Environment
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `LIS_ROOT` | `../` (parent of data-studio-ui) | Path to lis checkout for `bin/lis` |
-| `LI_DATA_DIR` | `~/.local/share/lis/data` | lidb data directory |
-| `LIDB_ROOT` | `../lidb` | lidb checkout for Python bridge |
-| `LIS_PYTHON` | `python3` / `python` | Python for `scripts/lidb_studio_bridge.py` |
-| `LIS_DB_STATUS_SHELL` | `bash` on Windows | Shell to run `lis db status` |
-| `LI_API_PORT` | `54321` | Registry REST proxy target |
-| `LI_REALTIME_PORT` | `54323` | Realtime WS port for status panel |
+| `STUDIO_DATA_DIR` | `~/.local/share/lis/studio` | Project registry + per-project data roots |
+| `STUDIO_PROJECTS_FILE` | `$STUDIO_DATA_DIR/projects.json` | JSON project store |
+| `LIS_ROOT` | `../` | lis checkout for `bin/lis` |
+| `LIDB_ROOT` | `../lidb` | lidb for Python bridge |
+| `LIS_DB_STATUS_SHELL` | `bash` on Windows | Shell for `lis db` commands |
 
-## Scripts
+Plan: [ph-db-13-cloud-studio-projects.md](https://github.com/li-langverse/lic/blob/main/docs/superpowers/plans/ph-db-13-cloud-studio-projects.md)
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Dev server on port **54324** (avoids registry :54321) |
-| `npm run build` | Production build |
-| `npm run start` | Serve production build |
+## Removed (PH-DB-13)
 
-## Architecture
+- `/agents` page, agent trace, control-plane table browser
+- Agent dashboard proxy API routes (`/api/agents/*`, `/api/control-plane/*`)
 
-Next.js API routes call:
-
-- `bin/lis db status` — supervisor health
-- `scripts/lidb_studio_bridge.py` — lidb catalog / read-only SQL via `liorm.embed_engine`
-- Registry REST at `LI_API_PORT` — packages list for Auth tab
-
-No write path in the studio UI; CRUD remains via registry API or future liorm plans.
+Legacy top-level tabs (`/database`, `/sql`, …) redirect to Projects landing.

@@ -1,0 +1,101 @@
+# bitops — byte/word helpers using native bitwise operators.
+
+def crypto_u32_mask() -> int
+  requires true
+  ensures result > 0
+  decreases 0
+=
+  return 4294967296
+
+def crypto_u32_add(a: int, b: int) -> int
+  requires 0 <= a and a < crypto_u32_mask()
+  requires 0 <= b and b < crypto_u32_mask()
+  ensures 0 <= result and result < crypto_u32_mask()
+  decreases 0
+=
+  var s: int = a + b
+  if s >= crypto_u32_mask():
+    return s - crypto_u32_mask()
+  return s
+
+def crypto_u32_wrap(v: int) -> int
+  requires 0 <= v
+  ensures 0 <= result and result < crypto_u32_mask()
+  decreases 0
+=
+  if v >= crypto_u32_mask():
+    return v - crypto_u32_mask()
+  return v
+
+def crypto_u8_xor(a: int, b: int) -> int
+  requires 0 <= a and a <= 255
+  requires 0 <= b and b <= 255
+  ensures 0 <= result and result <= 255
+  decreases 0
+=
+  return a ^ b
+
+def crypto_u8_and(a: int, b: int) -> int
+  requires 0 <= a and a <= 255
+  requires 0 <= b and b <= 255
+  ensures 0 <= result and result <= 255
+  decreases 0
+=
+  return a and b
+
+def crypto_u8_or(a: int, b: int) -> int
+  requires 0 <= a and a <= 255
+  requires 0 <= b and b <= 255
+  ensures 0 <= result and result <= 255
+  decreases 0
+=
+  return a or b
+
+def crypto_u32_byte(x: int, idx: int) -> int
+  requires 0 <= x and x < crypto_u32_mask()
+  requires 0 <= idx and idx <= 3
+  ensures 0 <= result and result <= 255
+  decreases 3 - idx
+=
+  return (x >> (idx * 8)) and 255
+
+def crypto_u32_from_bytes(b0: int, b1: int, b2: int, b3: int) -> int
+  requires 0 <= b0 and b0 <= 255
+  requires 0 <= b1 and b1 <= 255
+  requires 0 <= b2 and b2 <= 255
+  requires 0 <= b3 and b3 <= 255
+  ensures 0 <= result and result < crypto_u32_mask()
+  decreases 0
+=
+  return b0 + (b1 << 8) + (b2 << 16) + (b3 << 24)
+
+def crypto_u32_rotr(x: int, n: int) -> int
+  requires 0 <= x and x < crypto_u32_mask()
+  requires 0 <= n and n <= 32
+  ensures 0 <= result and result < crypto_u32_mask()
+  decreases 0
+=
+  if n == 0 or n == 32:
+    return x
+  return crypto_u32_wrap((x >> n) or (x << (32 - n)))
+
+def crypto_u32_xor(a: int, b: int) -> int
+  requires true
+  ensures 0 <= result and result < crypto_u32_mask()
+  decreases 0
+=
+  return crypto_u32_wrap(a ^ b)
+
+def crypto_u32_and(a: int, b: int) -> int
+  requires true
+  ensures 0 <= result and result < crypto_u32_mask()
+  decreases 0
+=
+  return crypto_u32_wrap(a and b)
+
+def crypto_u32_or(a: int, b: int) -> int
+  requires true
+  ensures 0 <= result and result < crypto_u32_mask()
+  decreases 0
+=
+  return crypto_u32_wrap(a or b)
