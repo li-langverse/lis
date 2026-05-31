@@ -1,4 +1,4 @@
-import { STUDIO_NAV } from "@/lib/studio-nav";
+﻿import { STUDIO_NAV } from "@/lib/studio-nav";
 
 export type StudioCommand = {
   id: string;
@@ -10,6 +10,13 @@ export type StudioCommand = {
 };
 
 export const STUDIO_COMMANDS: StudioCommand[] = [
+  {
+    id: "nav-home",
+    label: "Go to Projects",
+    section: "Navigate",
+    keywords: "home projects dashboard",
+    href: "/",
+  },
   ...STUDIO_NAV.map((item) => ({
     id: `nav-${item.href}`,
     label: `Go to ${item.label}`,
@@ -17,20 +24,6 @@ export const STUDIO_COMMANDS: StudioCommand[] = [
     keywords: item.label.toLowerCase(),
     href: item.href,
   })),
-  {
-    id: "nav-home",
-    label: "Go to Project Home",
-    section: "Navigate",
-    keywords: "home dashboard overview",
-    href: "/",
-  },
-  {
-    id: "nav-agents",
-    label: "Go to Agents & Control Plane",
-    section: "Navigate",
-    keywords: "agents runs trace control plane",
-    href: "/agents",
-  },
   {
     id: "action-refresh-db",
     label: "Refresh database status",
