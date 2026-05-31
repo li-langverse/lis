@@ -22,10 +22,8 @@ jobs:
         run: |
           set -euxo pipefail
           mkdir -p stack/lis stack/lidb
-          shopt -s dotglob
-          cp -r . stack/lis/
+          rsync -a --exclude stack --exclude lidb --exclude .git ./ stack/lis/
           cp -r lidb/. stack/lidb/
-          rm -rf stack/lis/stack stack/lis/lidb
           docker build -f stack/lis/docker/Dockerfile.supervisor -t lis-phdb-smoke stack
       - name: lis db status smoke
         run: |
