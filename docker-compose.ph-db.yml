@@ -1,4 +1,4 @@
-# PH-DB WP-H: local dev stack — lis db + optional Postgres oracle for bench.
+﻿# PH-DB WP-H: local dev stack — lis db + optional Postgres oracle for bench.
 services:
   lis-db:
     build:
@@ -10,7 +10,7 @@ services:
       LI_DATA_DIR: /data
       LIDB_ROOT: /opt/lidb
       LIDB_EMBED: /opt/lidb/build/smoke/lidb_embed
-      LI_REGISTRY_API: "0"
+      LI_REGISTRY_API: "1"
     ports:
       - "54321:54321"
     healthcheck:
@@ -19,6 +19,29 @@ services:
       timeout: 5s
       retries: 12
       start_period: 30s
+
+  # Li Data Studio — host dev (recommended): cd data-studio-ui && npm run dev → :54324
+  # In-container dev (studio profile): docker compose -f docker-compose.ph-db.yml --profile studio up
+  data-studio-ui:
+    profiles: ["studio"]
+    image: node:22-alpine
+    working_dir: /app
+    volumes:
+      - ./data-studio-ui:/app
+      - ..:/workspace:ro
+      - li-data:/data:ro
+    ports:
+      - "54324:54324"
+    environment:
+      LI_DATA_DIR: /data
+      LIDB_ROOT: /workspace/lidb
+      LIS_ROOT: /workspace/lis
+      LI_API_HOST: lis-db
+      LI_API_PORT: "54321"
+    command: sh -c "npm ci && npm run dev -- --hostname 0.0.0.0"
+    depends_on:
+      lis-db:
+        condition: service_healthy
 
   postgres-oracle:
     image: postgres:16-alpine
