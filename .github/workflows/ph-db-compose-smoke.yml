@@ -1,0 +1,37 @@
+name: PH-DB compose smoke
+on:
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - "docker-compose.ph-db.yml"
+      - "docker/**"
+      - ".github/workflows/ph-db-compose-smoke.yml"
+  workflow_dispatch:
+jobs:
+  compose-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: li-langverse/lidb
+          ref: main
+          path: lidb
+      - name: Build supervisor image
+        run: |
+          set -euxo pipefail
+          mkdir -p stack/lis stack/lidb
+          rsync -a --exclude stack --exclude lidb --exclude .git ./ stack/lis/
+          cp -r lidb/. stack/lidb/
+          docker build -f stack/lis/docker/Dockerfile.supervisor -t lis-phdb-smoke stack
+      - name: lis db status smoke
+        run: |
+          cid=$(docker run -d lis-phdb-smoke bash -lc '/opt/lis/bin/lis db start --foreground')
+          trap "docker rm -f $cid" EXIT
+          for i in $(seq 1 30); do
+            docker exec "$cid" bash -lc '/opt/lis/bin/lis db status | grep -q "lidb_link:.*native"' && exit 0
+            sleep 2
+          done
+          docker exec "$cid" bash -lc '/opt/lis/bin/lis db status' || true
+          exit 1
