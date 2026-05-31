@@ -1,0 +1,153 @@
+:root {
+  --bg: #1c1c1c;
+  --surface: #232323;
+  --surface-2: #2e2e2e;
+  --border: #3a3a3a;
+  --text: #ededed;
+  --muted: #a0a0a0;
+  --accent: #3ecf8e;
+  --warn: #f5a623;
+  --danger: #f56565;
+  --radius: 6px;
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 1rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 1rem;
+  padding: 0 0.5rem;
+}
+
+.brand-sub {
+  font-size: 0.75rem;
+  color: var(--muted);
+  padding: 0 0.5rem;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.nav a {
+  color: var(--text);
+  padding: 0.45rem 0.5rem;
+  border-radius: var(--radius);
+}
+
+.nav a:hover {
+  background: var(--surface-2);
+}
+
+.nav a.active {
+  background: var(--surface-2);
+  color: var(--accent);
+}
+
+.content {
+  padding: 1.25rem 1.5rem;
+  max-width: 960px;
+}
+
+.panel h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.35rem;
+}
+
+.hint {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.status-grid {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.status-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+}
+
+.status-row dt {
+  color: var(--muted);
+  margin: 0;
+}
+
+.status-row dd {
+  margin: 0;
+  font-family: ui-monospace, monospace;
+  word-break: break-all;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-ok {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  color: var(--accent);
+}
+
+.badge-warn {
+  background: color-mix(in srgb, var(--warn) 25%, transparent);
+  color: var(--warn);
+}
+
+.badge-danger {
+  background: color-mix(in srgb, var(--danger) 25%, transparent);
+  color: var(--danger);
+}
+
+.error-block {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border: 1px solid var(--danger);
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+}
