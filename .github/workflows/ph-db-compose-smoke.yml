@@ -26,19 +26,27 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-        with:
-          path: lis
       - uses: actions/checkout@v4
         with:
           repository: li-langverse/lidb
           ref: main
           path: lidb
-      - name: Compose up
-        working-directory: lis
+
+      - name: Prepare sibling stack layout
+        run: |
+          mkdir -p stack/lis stack/lidb
+          shopt -s dotglob
+          cp -r . stack/lis/
+          cp -r lidb/. stack/lidb/
+          rm -rf stack/lis/stack stack/lis/lidb
+
+      - name: Compose up (lis db healthcheck)
+        working-directory: stack/lis
         run: |
           docker compose -f docker-compose.ph-db.yml up --build --wait --abort-on-container-exit
           docker compose -f docker-compose.ph-db.yml exec -T lis-db bash -lc             '/opt/lis/bin/lis db status | grep -q "lidb_link:.*native"'
+
       - name: Compose down
         if: always()
-        working-directory: lis
+        working-directory: stack/lis
         run: docker compose -f docker-compose.ph-db.yml down -v
