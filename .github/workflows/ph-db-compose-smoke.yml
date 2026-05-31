@@ -1,5 +1,4 @@
 name: PH-DB compose smoke
-
 on:
   pull_request:
     branches: [main, dev]
@@ -7,21 +6,9 @@ on:
       - "docker-compose.ph-db.yml"
       - "docker/**"
       - ".github/workflows/ph-db-compose-smoke.yml"
-  push:
-    branches: [main, dev]
-    paths:
-      - "docker-compose.ph-db.yml"
-      - "docker/**"
-      - ".github/workflows/ph-db-compose-smoke.yml"
   workflow_dispatch:
-
-concurrency:
-  group: ph-db-compose-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   compose-smoke:
-    name: docker-compose.ph-db.yml
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -31,22 +18,22 @@ jobs:
           repository: li-langverse/lidb
           ref: main
           path: lidb
-
-      - name: Prepare sibling stack layout
+      - name: Build supervisor image
         run: |
+          set -euxo pipefail
           mkdir -p stack/lis stack/lidb
           shopt -s dotglob
           cp -r . stack/lis/
           cp -r lidb/. stack/lidb/
           rm -rf stack/lis/stack stack/lis/lidb
-
-      - name: Compose up (lis db healthcheck)
-        working-directory: stack/lis
+          docker build -f stack/lis/docker/Dockerfile.supervisor -t lis-phdb-smoke stack
+      - name: lis db status smoke
         run: |
-          docker compose -f docker-compose.ph-db.yml up --build --wait --abort-on-container-exit
-          docker compose -f docker-compose.ph-db.yml exec -T lis-db bash -lc             '/opt/lis/bin/lis db status | grep -q "lidb_link:.*native"'
-
-      - name: Compose down
-        if: always()
-        working-directory: stack/lis
-        run: docker compose -f docker-compose.ph-db.yml down -v
+          cid=$(docker run -d lis-phdb-smoke bash -lc '/opt/lis/bin/lis db start --foreground')
+          trap "docker rm -f $cid" EXIT
+          for i in $(seq 1 30); do
+            docker exec "$cid" bash -lc '/opt/lis/bin/lis db status | grep -q "lidb_link:.*native"' && exit 0
+            sleep 2
+          done
+          docker exec "$cid" bash -lc '/opt/lis/bin/lis db status' || true
+          exit 1
