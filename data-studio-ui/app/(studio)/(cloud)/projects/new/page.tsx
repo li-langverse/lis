@@ -7,8 +7,8 @@ import { useEffect, useState } from "react";
 export default function NewProjectPage() {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [region, setRegion] = useState("us-east-1");
-  const [regions, setRegions] = useState<string[]>(["us-east-1", "eu-west-1", "ap-southeast-1"]);
+  const [regions, setRegions] = useState<string[]>(["local"]);
+  const [region, setRegion] = useState("local");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -16,7 +16,10 @@ export default function NewProjectPage() {
     void fetch("/api/projects")
       .then((r) => r.json())
       .then((j: { regions?: string[] }) => {
-        if (j.regions?.length) setRegions(j.regions);
+        if (j.regions?.length) {
+          setRegions(j.regions);
+          setRegion((prev) => (j.regions?.includes(prev) ? prev : j.regions![0]!));
+        }
       });
   }, []);
 
@@ -65,14 +68,23 @@ export default function NewProjectPage() {
         </label>
         <label className="field">
           <span>Region</span>
-          <select className="text-input" value={region} onChange={(e) => setRegion(e.target.value)}>
-            {regions.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-          <span className="field-hint">Stub for future multi-region hosting (C1/C3).</span>
+          {regions.length <= 1 ? (
+            <>
+              <input className="text-input" value={regions[0] ?? "local"} readOnly />
+              <span className="field-hint">Region is locked by the server for this deployment.</span>
+            </>
+          ) : (
+            <>
+              <select className="text-input" value={region} onChange={(e) => setRegion(e.target.value)}>
+                {regions.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+              <span className="field-hint">Region options are enforced server-side.</span>
+            </>
+          )}
         </label>
         {error ? <p className="error-block">{error}</p> : null}
         <div className="form-actions">

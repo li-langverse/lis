@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { createProject, listProjects, studioRegions } from "@/lib/projects-store";
+import { createProject, listProjects } from "@/lib/projects-store";
 import { probeProjectDb } from "@/lib/project-runtime";
+import { allowedStudioRegions } from "@/lib/regions";
 
 export async function GET() {
   const projects = await listProjects();
@@ -14,7 +15,8 @@ export async function GET() {
       };
     }),
   );
-  return NextResponse.json({ ok: true, projects: enriched, regions: studioRegions() });
+  const regions = await allowedStudioRegions();
+  return NextResponse.json({ ok: true, projects: enriched, regions });
 }
 
 export async function POST(request: Request) {
@@ -30,9 +32,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Project name is required" }, { status: 400 });
   }
 
-  const allowedRegions = studioRegions();
-  const region = body.region?.trim() || allowedRegions[0];
-  if (!allowedRegions.includes(region as (typeof allowedRegions)[number])) {
+  const allowedRegions = await allowedStudioRegions();
+  const region = body.region?.trim() || allowedRegions[0] || "local";
+  if (!allowedRegions.includes(region)) {
     return NextResponse.json({ ok: false, error: "Invalid region" }, { status: 400 });
   }
 

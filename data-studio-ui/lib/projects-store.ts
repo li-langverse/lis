@@ -27,13 +27,6 @@ type ProjectStore = {
   projects: StudioProject[];
 };
 
-const REGIONS = ["us-east-1", "eu-west-1", "ap-southeast-1"] as const;
-export type StudioRegion = (typeof REGIONS)[number];
-
-export function studioRegions(): readonly StudioRegion[] {
-  return REGIONS;
-}
-
 export function projectsStorePath(): string {
   if (process.env.STUDIO_PROJECTS_FILE) return process.env.STUDIO_PROJECTS_FILE;
   const base = process.env.STUDIO_DATA_DIR ?? path.join(os.homedir(), ".local", "share", "lis", "studio");
