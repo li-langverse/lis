@@ -24,7 +24,7 @@ export function ProjectShell({ projectId, projectName, children }: Props) {
     <div className="app-shell">
       <aside className="sidebar">
         <Link href="/" className="brand brand-link">
-          Li Data Studio
+          Librebase Studio
         </Link>
         <div className="brand-sub project-context">
           <span className="project-label">Project</span>

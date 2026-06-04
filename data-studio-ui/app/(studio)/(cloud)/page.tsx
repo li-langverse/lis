@@ -38,7 +38,7 @@ export default function ProjectsLandingPage() {
         <div>
           <h1>Projects</h1>
           <p className="hint">
-            Create a project, launch an isolated lidb stack, and open the Supabase-style studio for tables and SQL.
+            Create a project, launch an isolated lidb stack, and open the modern data console for tables and SQL.
           </p>
         </div>
         <div className="landing-actions">

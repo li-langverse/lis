@@ -4,7 +4,7 @@ export type StudioNavItem = {
   section: string;
 };
 
-/** Supabase Studio–aligned primary navigation. */
+/** Librebase Studio primary navigation. */
 export const STUDIO_NAV: StudioNavItem[] = [
   { href: "/database", label: "Database", section: "Database" },
   { href: "/sql", label: "SQL Editor", section: "SQL" },

@@ -10,8 +10,8 @@ export function OrgShell({ children }: Props) {
   return (
     <div className="app-shell org-shell">
       <aside className="sidebar">
-        <div className="brand">Li Data Studio</div>
-        <div className="brand-sub">Cloud console for lidb projects</div>
+        <div className="brand">Librebase</div>
+        <div className="brand-sub">Projects, studio, and agents on lidb</div>
         <nav className="nav" aria-label="Organization">
           <Link href="/" className="active">
             Projects

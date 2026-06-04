@@ -1,6 +1,6 @@
-﻿# Li Data Studio UI (PH-DB-13 phase 1)
+﻿# Librebase Studio UI (PH-DB-13 phase 1)
 
-Supabase Studio–aligned cloud console for **project-scoped lidb** stacks. Replaces agent control-plane UI with org → project → database workflow.
+Modern data console for **project-scoped lidb** stacks on Librebase. Replaces agent control-plane UI with org → project → database workflow.
 
 ## Quick start
 
