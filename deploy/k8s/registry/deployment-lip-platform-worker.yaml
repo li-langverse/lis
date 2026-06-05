@@ -1,0 +1,147 @@
+# Goal-directed cluster worker: ingress fixes + registry/git smokes + status.json.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lip-platform-worker-data
+  namespace: lip-registry
+  labels:
+    app: lip-platform-worker
+    app.kubernetes.io/part-of: lip-platform
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: lip-platform-worker
+  namespace: lip-registry
+  labels:
+    app: lip-platform-worker
+    app.kubernetes.io/part-of: lip-platform
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: lip-platform-worker
+  namespace: lip-registry
+rules:
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["services", "configmaps"]
+    verbs: ["get", "list"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: lip-platform-worker
+  namespace: lip-registry
+subjects:
+  - kind: ServiceAccount
+    name: lip-platform-worker
+    namespace: lip-registry
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: lip-platform-worker
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lip-platform-worker
+  namespace: lip-registry
+  labels:
+    app: lip-platform-worker
+    app.kubernetes.io/name: lip-platform-worker
+    app.kubernetes.io/component: goal-directed-worker
+    app.kubernetes.io/part-of: lip-platform
+    li-langverse.io/cluster: engine
+    li-langverse.io/role: lip-platform-worker
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: lip-platform-worker
+  template:
+    metadata:
+      labels:
+        app: lip-platform-worker
+        app.kubernetes.io/name: lip-platform-worker
+        app.kubernetes.io/component: goal-directed-worker
+        li-langverse.io/role: lip-platform-worker
+    spec:
+      serviceAccountName: lip-platform-worker
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      imagePullSecrets:
+        - name: ghcr-li-langverse
+      containers:
+        - name: worker
+          # Build: docker build -f lis/docker/Dockerfile.supervisor -t lip-registry:latest .
+          # Push:  docker tag lip-registry:latest ghcr.io/li-langverse/lis:registry-min && docker push ...
+          image: ghcr.io/li-langverse/lis:registry-min
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "/config/entrypoint.sh"]
+          envFrom:
+            - configMapRef:
+                name: lip-platform-worker
+          env:
+            - name: LI_PLATFORM_NAMESPACE
+              value: lip-registry
+            - name: GH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: GH_TOKEN
+                  optional: true
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: GH_TOKEN
+                  optional: true
+            - name: LIP_REGISTRY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: LI_REGISTRY_DEV_TOKEN
+                  optional: true
+            - name: LI_REGISTRY_DEV_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: LI_REGISTRY_DEV_TOKEN
+                  optional: true
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config-bundle
+              mountPath: /config
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: lip-platform-worker-data
+        - name: config-bundle
+          configMap:
+            name: lip-platform-worker-bundle
+            defaultMode: 0755
