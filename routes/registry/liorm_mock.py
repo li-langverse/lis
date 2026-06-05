@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from routes.auth.verify import resolve_registry_bearer
+
 from .errors import RegistryError
 
 
@@ -121,9 +123,18 @@ class MockRegistryStore:
             )
         return pv.to_dict()
 
-    def publish(self, name: str, body: dict[str, Any], *, token: str | None) -> dict[str, Any]:
+    def _require_publish_token(self, token: str | None) -> None:
         if not token:
             raise RegistryError("unauthorized", "missing bearer token", status=401)
+        ctx = resolve_registry_bearer(token)
+        if ctx is None:
+            raise RegistryError("unauthorized", "invalid or expired bearer token", status=401)
+        scope = str(ctx.get("scope", ""))
+        if scope not in ("publish", "publish+yank"):
+            raise RegistryError("forbidden", "token scope does not allow publish", status=403)
+
+    def publish(self, name: str, body: dict[str, Any], *, token: str | None) -> dict[str, Any]:
+        self._require_publish_token(token)
         version = body.get("version")
         if not version:
             raise RegistryError("bad_request", "version is required")
@@ -178,6 +189,12 @@ class MockRegistryStore:
     def yank(self, name: str, version: str, reason: str, *, token: str | None) -> dict[str, Any]:
         if not token:
             raise RegistryError("unauthorized", "missing bearer token", status=401)
+        ctx = resolve_registry_bearer(token)
+        if ctx is None:
+            raise RegistryError("unauthorized", "invalid or expired bearer token", status=401)
+        scope = str(ctx.get("scope", ""))
+        if scope not in ("yank", "publish+yank"):
+            raise RegistryError("forbidden", "token scope does not allow yank", status=403)
         if not reason:
             raise RegistryError("bad_request", "reason is required")
         key = (name, version)

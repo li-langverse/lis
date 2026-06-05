@@ -47,6 +47,9 @@ class RegistryHandler(BaseHTTPRequestHandler):
     def do_HEAD(self) -> None:
         self._dispatch()
 
+    def do_DELETE(self) -> None:
+        self._dispatch()
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="lis registry REST stub")

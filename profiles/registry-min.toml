@@ -16,6 +16,8 @@ registry_handlers = "routes/registry/handlers.py"
 registry_server = "routes/registry/server.py"
 registry_store = "routes/registry/store.py"
 registry_mock_store = "routes/registry/liorm_mock.py"
+auth_routes = "routes/auth"
+auth_handlers = "routes/auth/handlers.py"
 openapi_spec = "openapi/registry-v1.yaml"
 
 [ports]
@@ -28,6 +30,9 @@ db = 54322    # Postgres wire protocol subset (lidb)
 #   LI_PROFILE  — defaults to registry-min
 # Optional overrides:
 #   LI_API_PORT, LI_DB_PORT
+# Auth (MVP):
+#   LI_JWT_SECRET — required for /v1/auth sessions
+#   LI_REGISTRY_DEV_TOKEN — dev publish bypass only
 
 [[verticals]]
 id = "database"

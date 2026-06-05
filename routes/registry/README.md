@@ -11,10 +11,21 @@ PostgREST-shaped handlers for **lip** registry OpenAPI v1. Default store uses **
 | `GET` | `/v1/openapi.yaml` | Serves [openapi/registry-v1.yaml](../../openapi/registry-v1.yaml) |
 | `GET` | `/health` | Liveness |
 
+Auth routes (same listener): see [routes/auth/README.md](../auth/README.md).
+
+| Method | Path | Handler |
+|--------|------|---------|
+| `POST` | `/v1/auth/signup` | Register user + publisher |
+| `POST` | `/v1/auth/login` | Session JWT |
+| `POST` | `/v1/auth/tokens` | Create API token (session bearer) |
+| `GET` | `/v1/auth/tokens` | List API tokens |
+| `DELETE` | `/v1/auth/tokens/{id}` | Revoke API token |
+
 ## Run
 
 ```bash
 export LI_DATA_DIR="${LI_DATA_DIR:-./.li-data}"
+export LI_JWT_SECRET="${LI_JWT_SECRET:-dev-change-me}"
 export LI_API_PORT=54321
 python3 routes/registry/server.py
 ```

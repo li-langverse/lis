@@ -7,6 +7,8 @@ import re
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+from routes.auth.handlers import handle_auth_request
+
 from .errors import RegistryError
 from .store import get_registry_store, registry_backend_name
 
@@ -62,14 +64,22 @@ def handle_request(
     parsed = urlparse(path)
     route = parsed.path.rstrip("/") or "/"
     qs = parse_qs(parsed.query)
+
+    auth_result = handle_auth_request(method, route, headers=headers, body=body)
+    if auth_result is not None:
+        return auth_result
+
     store = get_registry_store()
 
     if route == "/health":
         backend = registry_backend_name()
+        from routes.auth.store import auth_backend_name
+
         body: dict[str, Any] = {
             "status": "ok",
             "service": "lis-registry",
             "backend": backend,
+            "auth": auth_backend_name(),
             "stub": backend == "mock" or backend == "liorm",
         }
         return _json_response(200, body)

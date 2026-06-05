@@ -37,6 +37,44 @@ export LI_PROFILE=registry-min
 
 See [docs/cli-db.md](docs/cli-db.md) and [profiles/registry-min.toml](profiles/registry-min.toml).
 
+## Registry auth (MVP)
+
+Email+password signup/login and API tokens on the same registry port (`/v1/auth/*`). Phase 1 TOTP/WebAuthn spec: [docs/auth-2fa-webauthn.md](docs/auth-2fa-webauthn.md).
+
+```bash
+export LI_DATA_DIR=~/.local/share/lis/data
+export LI_JWT_SECRET="$(openssl rand -hex 32)"   # required for sessions
+export LI_REGISTRY_MOCK=1                        # optional offline store
+python3 routes/registry/server.py
+```
+
+Interactive client login (from **lip** checkout):
+
+```bash
+./scripts/lip-login.sh
+```
+
+Writes `~/.config/lip/credentials.toml` with `registry.url` and `registry.token`.
+
+### Environment (interactive setup)
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `LI_JWT_SECRET` | Yes (auth) | HS256 key for session JWTs — generate once per deploy |
+| `LI_REGISTRY_DEV_TOKEN` | No | Dev-only publish bearer bypass (never in production) |
+| `LI_DATA_DIR` | Yes | Persistent auth + registry mock data |
+| `LI_API_PORT` | No | Registry listener port (default `54321`) |
+
+Example `.env` for local dev (do not commit):
+
+```bash
+LI_DATA_DIR=./.li-data
+LI_JWT_SECRET=local-dev-secret-change-me
+LI_REGISTRY_DEV_TOKEN=test-token
+LI_REGISTRY_MOCK=1
+LI_API_PORT=54321
+```
+
 ## Staging (Majico / containers)
 
 Self-hosted VPS staging without Supabase Cloud: validated **li-httpd TOML** â†’ **Caddy** edge, Docker Compose for app containers.
