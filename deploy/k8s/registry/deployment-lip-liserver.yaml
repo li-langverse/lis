@@ -32,10 +32,17 @@ data:
   entrypoint.sh: |
     #!/usr/bin/env bash
     set -euo pipefail
+    apt-get update -qq && apt-get install -y -qq socat
+    pkill -f '/usr/local/bin/li-httpd' 2>/dev/null || true
+    pkill -x socat 2>/dev/null || true
+    sleep 1
     mkdir -p /var/lib/li-httpd/empty /run/li-httpd
     install -m 755 /bin/li-httpd /usr/local/bin/li-httpd
     install -m 644 /config/lip-registry.runtime.conf /run/li-httpd/lip-registry.runtime.conf
-    exec /usr/local/bin/li-httpd /run/li-httpd/lip-registry.runtime.conf
+    /usr/local/bin/li-httpd /run/li-httpd/lip-registry.runtime.conf &
+    sleep 1
+    # li-httpd binds 127.0.0.1 today; expose on all interfaces for engine :80 edge.
+    exec socat TCP-LISTEN:80,bind=0.0.0.0,reuseaddr,fork TCP:127.0.0.1:80
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -86,9 +93,7 @@ spec:
           command: ["/bin/bash", "/config/entrypoint.sh"]
           ports:
             - containerPort: 80
-              hostPort: 80
-            - containerPort: 443
-              hostPort: 443
+              protocol: TCP
           readinessProbe:
             httpGet:
               path: /health

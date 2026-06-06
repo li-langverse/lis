@@ -1,0 +1,181 @@
+# Two independent peer seeders (same blob hostPath as registry origin).
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lip-peer-a
+  namespace: lip-registry
+  labels:
+    app: lip-peer-a
+spec:
+  selector:
+    app: lip-peer-a
+  ports:
+    - name: http
+      port: 8765
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lip-peer-a
+  namespace: lip-registry
+  labels:
+    app: lip-peer-a
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lip-peer-a
+  template:
+    metadata:
+      labels:
+        app: lip-peer-a
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      containers:
+        - name: peer
+          image: python:3.12-slim
+          command:
+            - /bin/bash
+            - -lc
+            - |
+              set -euo pipefail
+              apt-get update -qq && apt-get install -y -qq --no-install-recommends git ca-certificates curl
+              LIS_DIR=/opt/lis
+              if [[ ! -d "$LIS_DIR/.git" ]]; then
+                git clone --depth 1 https://github.com/li-langverse/lis.git "$LIS_DIR"
+              fi
+              if [[ -d /opt/lis-patch ]]; then
+                cp -f /opt/lis-patch/registry-handlers.py "$LIS_DIR/routes/registry/handlers.py"
+                cp -f /opt/lis-patch/registry-server.py "$LIS_DIR/routes/registry/server.py"
+                cp -f /opt/lis-patch/registry-liorm_mock.py "$LIS_DIR/routes/registry/liorm_mock.py"
+                cp -f /opt/lis-patch/registry-blob_store.py "$LIS_DIR/routes/registry/blob_store.py"
+                cp -f /opt/lis-patch/registry-peer_store.py "$LIS_DIR/routes/registry/peer_store.py"
+                mkdir -p "$LIS_DIR/routes/auth"
+                cp -f /opt/lis-patch/auth-handlers.py "$LIS_DIR/routes/auth/handlers.py"
+                cp -f /opt/lis-patch/auth-verify.py "$LIS_DIR/routes/auth/verify.py"
+                cp -f /opt/lis-patch/auth-store.py "$LIS_DIR/routes/auth/store.py"
+                cp -f /opt/lis-patch/auth-mock_store.py "$LIS_DIR/routes/auth/mock_store.py"
+                cp -f /opt/lis-patch/auth-crypto_util.py "$LIS_DIR/routes/auth/crypto_util.py"
+                cp -f /opt/lis-patch/auth-jwt_util.py "$LIS_DIR/routes/auth/jwt_util.py"
+                cp -f /opt/lis-patch/auth-errors.py "$LIS_DIR/routes/auth/errors.py"
+                cp -f /opt/lis-patch/auth-__init__.py "$LIS_DIR/routes/auth/__init__.py"
+              fi
+              export PYTHONPATH="$LIS_DIR"
+              export LIP_BLOB_DIR=/data/blobs
+              export LI_DATA_DIR=/data/peer-meta
+              export LI_REGISTRY_MOCK=1
+              export LIS_REGISTRY_QUIET=1
+              cd "$LIS_DIR"
+              exec python3 routes/registry/server.py --host 0.0.0.0 --port 8765
+          ports:
+            - name: http
+              containerPort: 8765
+          envFrom:
+            - configMapRef:
+                name: lip-registry-config
+          volumeMounts:
+            - name: blob-store
+              mountPath: /data/blobs
+            - name: routes-patch
+              mountPath: /opt/lis-patch
+      volumes:
+        - name: blob-store
+          hostPath:
+            path: /var/lib/lip-registry/blobs
+            type: Directory
+        - name: routes-patch
+          configMap:
+            name: lip-registry-routes-patch
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lip-peer-b
+  namespace: lip-registry
+  labels:
+    app: lip-peer-b
+spec:
+  selector:
+    app: lip-peer-b
+  ports:
+    - name: http
+      port: 8766
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lip-peer-b
+  namespace: lip-registry
+  labels:
+    app: lip-peer-b
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lip-peer-b
+  template:
+    metadata:
+      labels:
+        app: lip-peer-b
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      containers:
+        - name: peer
+          image: python:3.12-slim
+          command:
+            - /bin/bash
+            - -lc
+            - |
+              set -euo pipefail
+              apt-get update -qq && apt-get install -y -qq --no-install-recommends git ca-certificates curl
+              LIS_DIR=/opt/lis
+              if [[ ! -d "$LIS_DIR/.git" ]]; then
+                git clone --depth 1 https://github.com/li-langverse/lis.git "$LIS_DIR"
+              fi
+              if [[ -d /opt/lis-patch ]]; then
+                cp -f /opt/lis-patch/registry-handlers.py "$LIS_DIR/routes/registry/handlers.py"
+                cp -f /opt/lis-patch/registry-server.py "$LIS_DIR/routes/registry/server.py"
+                cp -f /opt/lis-patch/registry-liorm_mock.py "$LIS_DIR/routes/registry/liorm_mock.py"
+                cp -f /opt/lis-patch/registry-blob_store.py "$LIS_DIR/routes/registry/blob_store.py"
+                cp -f /opt/lis-patch/registry-peer_store.py "$LIS_DIR/routes/registry/peer_store.py"
+                mkdir -p "$LIS_DIR/routes/auth"
+                cp -f /opt/lis-patch/auth-handlers.py "$LIS_DIR/routes/auth/handlers.py"
+                cp -f /opt/lis-patch/auth-verify.py "$LIS_DIR/routes/auth/verify.py"
+                cp -f /opt/lis-patch/auth-store.py "$LIS_DIR/routes/auth/store.py"
+                cp -f /opt/lis-patch/auth-mock_store.py "$LIS_DIR/routes/auth/mock_store.py"
+                cp -f /opt/lis-patch/auth-crypto_util.py "$LIS_DIR/routes/auth/crypto_util.py"
+                cp -f /opt/lis-patch/auth-jwt_util.py "$LIS_DIR/routes/auth/jwt_util.py"
+                cp -f /opt/lis-patch/auth-errors.py "$LIS_DIR/routes/auth/errors.py"
+                cp -f /opt/lis-patch/auth-__init__.py "$LIS_DIR/routes/auth/__init__.py"
+              fi
+              export PYTHONPATH="$LIS_DIR"
+              export LIP_BLOB_DIR=/data/blobs
+              export LI_DATA_DIR=/data/peer-meta
+              export LI_REGISTRY_MOCK=1
+              export LIS_REGISTRY_QUIET=1
+              cd "$LIS_DIR"
+              exec python3 routes/registry/server.py --host 0.0.0.0 --port 8766
+          ports:
+            - name: http
+              containerPort: 8766
+          envFrom:
+            - configMapRef:
+                name: lip-registry-config
+          volumeMounts:
+            - name: blob-store
+              mountPath: /data/blobs
+            - name: routes-patch
+              mountPath: /opt/lis-patch
+      volumes:
+        - name: blob-store
+          hostPath:
+            path: /var/lib/lip-registry/blobs
+            type: Directory
+        - name: routes-patch
+          configMap:
+            name: lip-registry-routes-patch
