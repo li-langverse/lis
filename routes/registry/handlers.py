@@ -9,11 +9,19 @@ from urllib.parse import parse_qs, urlparse
 
 from routes.auth.handlers import handle_auth_request
 
+from .blob_store import get_blob_store, normalize_digest
 from .errors import RegistryError
+from .peer_store import get_peer_store
 from .store import get_registry_store, registry_backend_name
 
 NAME_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
 VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$")
+
+
+def _bytes_response(status: int, headers: dict[str, str], payload: bytes) -> tuple[int, dict[str, str], bytes]:
+    out = dict(headers)
+    out.setdefault("Content-Length", str(len(payload)))
+    return status, out, payload
 
 
 def _json_response(status: int, body: dict[str, Any]) -> tuple[int, dict[str, str], bytes]:
@@ -113,7 +121,66 @@ def handle_request(
         if not NAME_RE.match(name) or not VERSION_RE.match(version):
             return _json_response(400, {"error": "bad_request", "message": "invalid name or version"})
         try:
-            return _json_response(200, store.get_package_version(name, version))
+            pkg = store.get_package_version(name, version)
+            digest = pkg.get("artifact_digest") or pkg.get("tree_digest")
+            if digest:
+                sources = [{"type": "origin", "url": f"/v1/blobs/{digest}"}]
+                sources.extend(get_peer_store().list_for_digest(str(digest)))
+                pkg = {**pkg, "sources": sources}
+            return _json_response(200, pkg)
+        except RegistryError as exc:
+            return _error_response(exc)
+
+    m_blob = re.match(r"^/v1/blobs/(.+)$", route)
+    if m_blob:
+        digest_raw = m_blob.group(1)
+        blobs = get_blob_store()
+        try:
+            digest = normalize_digest(digest_raw)
+        except RegistryError as exc:
+            return _error_response(exc)
+        if method == "HEAD":
+            try:
+                meta = blobs.head(digest)
+                hdrs = {
+                    "Content-Type": "application/vnd.li.package+tar",
+                    "Content-Length": str(meta["size"]),
+                    "Digest": str(meta["digest"]),
+                }
+                return 200, hdrs, b""
+            except RegistryError as exc:
+                return _error_response(exc)
+        if method == "GET":
+            try:
+                data, hdrs = blobs.get(digest)
+                return _bytes_response(200, hdrs, data)
+            except RegistryError as exc:
+                return _error_response(exc)
+        if method == "PUT":
+            try:
+                result = blobs.put(digest, body or b"", token=_parse_bearer(headers))
+                return _json_response(201 if result.get("stored") else 200, result)
+            except RegistryError as exc:
+                return _error_response(exc)
+
+    if method == "POST" and route == "/v1/peers/announce":
+        try:
+            payload = json.loads(body or b"{}")
+        except json.JSONDecodeError:
+            return _json_response(400, {"error": "bad_request", "message": "invalid JSON body"})
+        try:
+            return _json_response(200, get_peer_store().announce(payload))
+        except RegistryError as exc:
+            return _error_response(exc)
+
+    if method == "GET" and route == "/v1/peers":
+        digest_q = qs.get("digest", [None])[0]
+        if not digest_q:
+            return _json_response(400, {"error": "bad_request", "message": "digest query required"})
+        try:
+            digest = normalize_digest(digest_q)
+            peers = get_peer_store().list_for_digest(digest)
+            return _json_response(200, {"digest": digest, "peers": peers})
         except RegistryError as exc:
             return _error_response(exc)
 

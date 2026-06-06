@@ -1,0 +1,30 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lip-disk-detect
+  namespace: lip-registry
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      hostPID: true
+      hostNetwork: true
+      containers:
+        - name: detect
+          image: ubuntu:24.04
+          securityContext:
+            privileged: true
+          command:
+            - /bin/bash
+            - -lc
+            - |
+              apt-get update -qq && apt-get install -y -qq util-linux lsblk
+              echo "=== block devices ==="
+              lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,UUID
+              echo "=== mounts ==="
+              nsenter -t 1 -m -u -i -n -- findmnt -T /var/lib/lip-registry 2>/dev/null || echo "/var/lib/lip-registry not mounted"
+              nsenter -t 1 -m -u -i -n -- df -h /var/lib/lip-registry 2>/dev/null || true

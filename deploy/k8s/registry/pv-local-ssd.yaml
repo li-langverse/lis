@@ -1,0 +1,47 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: lip-registry-ssd
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: lip-registry-ssd-pv
+  labels:
+    app: lip-registry
+spec:
+  capacity:
+    storage: 900Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: lip-registry-ssd
+  local:
+    path: /var/lib/lip-registry
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - engine
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lip-registry-blobs
+  namespace: lip-registry
+  labels:
+    app: lip-registry
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: lip-registry-ssd
+  resources:
+    requests:
+      storage: 900Gi
+  volumeName: lip-registry-ssd-pv

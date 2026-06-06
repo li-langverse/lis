@@ -81,6 +81,26 @@ kubectl -n lip-registry create secret generic lip-registry-secrets \
 
 Do not commit real values. Rotate `LI_REGISTRY_DEV_TOKEN` before public launch.
 
+## 1 TB SSD blob store (engine)
+
+External SSD mounts at **`/var/lib/lip-registry`** on node `engine` (hostPath → pod `/data/blobs`).
+
+```bash
+kubectl apply -f job-lip-disk-detect.yaml   # inspect block devices
+kubectl apply -f job-lip-ssd-mount-v2.yaml  # mount /dev/sdb1 if needed
+kubectl -n lip-registry logs job/lip-ssd-mount-v2
+```
+
+Registry blob API (content-addressed):
+
+| Method | Path | Auth |
+|--------|------|------|
+| `PUT` | `/v1/blobs/{sha256:…}` | bearer `publish` |
+| `GET` | `/v1/blobs/{sha256:…}` | public |
+| `POST` | `/v1/peers/announce` | optional (P2P seed hints) |
+
+`lip publish --registry URL` uploads a tarball (`artifact_digest`) then posts metadata. Peers: `lip peer serve`.
+
 ## Apply — registry API (baseline)
 
 When `namespace.yaml`, `deployment.yaml`, `service.yaml` exist in this directory:

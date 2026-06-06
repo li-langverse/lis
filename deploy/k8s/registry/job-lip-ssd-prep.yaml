@@ -1,0 +1,61 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lip-ssd-prep
+  namespace: lip-registry
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      hostPID: true
+      hostNetwork: true
+      containers:
+        - name: prep
+          image: ubuntu:24.04
+          securityContext:
+            privileged: true
+          command:
+            - /bin/bash
+            - -lc
+            - |
+              set -euo pipefail
+              apt-get update -qq && apt-get install -y -qq util-linux e2fsprogs
+              MOUNT=/var/lib/lip-registry
+              nsenter -t 1 -m -u -i -n -- mkdir -p "$MOUNT/blobs"
+              mounted_dev="$(nsenter -t 1 -m -u -i -n -- findmnt -n -o SOURCE --target "$MOUNT" 2>/dev/null || true)"
+              mounted_gb=0
+              if [[ -n "$mounted_dev" && "$mounted_dev" != /dev/sda2 ]]; then
+                echo "SSD already mounted at $MOUNT on $mounted_dev"
+              else
+                PART=""
+                while read -r name size type mount; do
+                  [[ "$type" != "part" ]] && continue
+                  [[ -n "$mount" ]] && continue
+                  gb="${size%G}"
+                  [[ "$size" == *G && "$gb" -ge 500 ]] || continue
+                  PART="/dev/$name"
+                  break
+                done < <(nsenter -t 1 -m -u -i -n -- lsblk -dn -o NAME,SIZE,TYPE,MOUNTPOINT)
+                if [[ -z "$PART" ]]; then
+                  echo "No unmounted >=500G partition; blobs dir on root fs"
+                else
+                  echo "Mounting $PART -> $MOUNT"
+                  if ! nsenter -t 1 -m -u -i -n -- blkid "$PART" >/dev/null 2>&1; then
+                    nsenter -t 1 -m -u -i -n -- mkfs.ext4 -F -L lip-registry "$PART"
+                  fi
+                  UUID="$(nsenter -t 1 -m -u -i -n -- blkid -s UUID -o value "$PART")"
+                  nsenter -t 1 -m -u -i -n -- mkdir -p "$MOUNT"
+                  nsenter -t 1 -m -u -i -n -- mountpoint -q "$MOUNT" && nsenter -t 1 -m -u -i -n -- umount "$MOUNT" || true
+                  nsenter -t 1 -m -u -i -n -- mount "$PART" "$MOUNT"
+                  grep -q "$UUID" /etc/fstab 2>/dev/null || \
+                    echo "UUID=$UUID $MOUNT ext4 defaults,nofail 0 2" | nsenter -t 1 -m -u -i -n -- tee -a /etc/fstab
+                fi
+              fi
+              nsenter -t 1 -m -u -i -n -- mkdir -p "$MOUNT/blobs"
+              nsenter -t 1 -m -u -i -n -- chown -R 65534:65534 "$MOUNT" || true
+              nsenter -t 1 -m -u -i -n -- df -h "$MOUNT"
+              nsenter -t 1 -m -u -i -n -- ls -la "$MOUNT"

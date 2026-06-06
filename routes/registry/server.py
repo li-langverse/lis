@@ -36,12 +36,16 @@ class RegistryHandler(BaseHTTPRequestHandler):
         for key, value in resp_headers.items():
             self.send_header(key, value)
         self.end_headers()
-        self.wfile.write(payload)
+        if self.command != "HEAD":
+            self.wfile.write(payload)
 
     def do_GET(self) -> None:
         self._dispatch()
 
     def do_POST(self) -> None:
+        self._dispatch()
+
+    def do_PUT(self) -> None:
         self._dispatch()
 
     def do_HEAD(self) -> None:

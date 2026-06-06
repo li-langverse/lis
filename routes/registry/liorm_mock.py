@@ -150,6 +150,20 @@ class MockRegistryStore:
                 status=403,
                 coverage_pct=coverage,
             )
+        if os.environ.get("LIP_REGISTRY_REQUIRE_BLOB", "1") not in ("0", "false", "no"):
+            from .blob_store import get_blob_store
+
+            artifact = body.get("artifact_digest") or tree
+            try:
+                get_blob_store().head(str(artifact))
+            except RegistryError as exc:
+                if exc.status == 404:
+                    raise RegistryError(
+                        "precondition_failed",
+                        "artifact blob must be uploaded before publish (PUT /v1/blobs/{artifact_digest})",
+                        status=412,
+                    ) from exc
+                raise
         key = (name, version)
         if key in self.versions:
             existing = self.versions[key]
