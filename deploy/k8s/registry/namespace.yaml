@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lip-registry
+  labels:
+    li-langverse.io/cluster: engine
+    app.kubernetes.io/part-of: lip-platform

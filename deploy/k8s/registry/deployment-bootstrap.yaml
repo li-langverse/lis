@@ -1,0 +1,109 @@
+# Bootstrap registry API when ghcr.io/li-langverse/lis:registry-min is unavailable.
+# Uses git clone + python registry server (mock store until full image is pushed).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lip-registry-bootstrap
+  namespace: lip-registry
+  labels:
+    app: lip-registry
+    app.kubernetes.io/name: lip-registry
+    app.kubernetes.io/component: registry-api
+    app.kubernetes.io/part-of: lip-platform
+    li-langverse.io/cluster: engine
+    li-langverse.io/bootstrap: "true"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: lip-registry
+  template:
+    metadata:
+      labels:
+        app: lip-registry
+        app.kubernetes.io/name: lip-registry
+        app.kubernetes.io/component: registry-api
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      containers:
+        - name: registry
+          image: python:3.12-slim
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+            - -lc
+            - |
+              set -euo pipefail
+              apt-get update -qq
+              apt-get install -y -qq --no-install-recommends git ca-certificates
+              LIS_DIR=/opt/lis
+              if [[ ! -d "$LIS_DIR/.git" ]]; then
+                if [[ -n "${GH_TOKEN:-}" ]]; then
+                  git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/li-langverse/lis.git" "$LIS_DIR"
+                else
+                  git clone --depth 1 "https://github.com/li-langverse/lis.git" "$LIS_DIR"
+                fi
+              fi
+              cd "$LIS_DIR"
+              export PYTHONPATH="$LIS_DIR${PYTHONPATH:+:$PYTHONPATH}"
+              export LI_REGISTRY_MOCK="${LI_REGISTRY_MOCK:-1}"
+              export LI_REGISTRY_HOST=0.0.0.0
+              exec python3 routes/registry/server.py --host 0.0.0.0 --port 54321
+          ports:
+            - name: http
+              containerPort: 54321
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: lip-registry-config
+          env:
+            - name: LI_REGISTRY_MOCK
+              value: "1"
+            - name: LI_REGISTRY_DEV_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: LI_REGISTRY_DEV_TOKEN
+            - name: LI_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: LI_JWT_SECRET
+            - name: GH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: GH_TOKEN
+                  optional: true
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 18
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: lip-registry-data

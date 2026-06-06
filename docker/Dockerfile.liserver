@@ -1,0 +1,38 @@
+# liserver edge — li-httpd + lip.lilangverse.xyz profile.
+# Build from monorepo root (sibling li-httpd/ + lis/):
+#   docker build -f lis/docker/Dockerfile.liserver -t ghcr.io/li-langverse/lis:liserver .
+FROM ubuntu:24.04
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash ca-certificates python3 util-linux \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY li-httpd/build/li-httpd /usr/local/bin/li-httpd
+COPY li-httpd/scripts/flatten-httpd-config.py /opt/li-httpd/scripts/flatten-httpd-config.py
+COPY li-httpd/scripts/httpd_config.py /opt/li-httpd/scripts/httpd_config.py
+COPY li-httpd/scripts/httpd_match.py /opt/li-httpd/scripts/httpd_match.py
+COPY li-httpd/scripts/httpd_m2.py /opt/li-httpd/scripts/httpd_m2.py
+COPY li-httpd/scripts/httpd_m3.py /opt/li-httpd/scripts/httpd_m3.py
+COPY li-httpd/scripts/httpd_m15.py /opt/li-httpd/scripts/httpd_m15.py
+COPY li-httpd/scripts/httpd_rng.py /opt/li-httpd/scripts/httpd_rng.py
+COPY li-httpd/scripts/httpd_tls.py /opt/li-httpd/scripts/httpd_tls.py
+COPY li-httpd/scripts/httpd_leak_censor.py /opt/li-httpd/scripts/httpd_leak_censor.py
+COPY li-httpd/scripts/schema_catalog.py /opt/li-httpd/scripts/schema_catalog.py
+
+COPY lis/deploy/edge /opt/lis/deploy/edge
+COPY lis/scripts/lip-liserver-apply.sh /opt/lis/scripts/lip-liserver-apply.sh
+COPY lis/scripts/httpd_config.py /opt/lis/scripts/httpd_config.py
+
+RUN chmod +x /usr/local/bin/li-httpd /opt/lis/scripts/lip-liserver-apply.sh \
+    && mkdir -p /var/lib/li-httpd/empty /run/li-httpd
+
+ENV LIS_ROOT=/opt/lis
+ENV LI_HTTPD_ROOT=/opt/li-httpd
+ENV LIP_REGISTRY_UPSTREAM=http://127.0.0.1:30422
+ENV LI_HTTPD_RUNTIME_DIR=/run/li-httpd
+
+WORKDIR /opt/lis
+
+EXPOSE 80 443
+
+CMD ["/bin/bash", "-lc", "scripts/lip-liserver-apply.sh --http-only --render-only && exec /usr/local/bin/li-httpd /run/li-httpd/lip-registry.runtime.conf"]

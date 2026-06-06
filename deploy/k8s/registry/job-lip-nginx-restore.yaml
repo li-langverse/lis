@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lip-nginx-restore
+  namespace: lip-registry
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      hostPID: true
+      hostNetwork: true
+      containers:
+        - name: restore
+          image: ubuntu:24.04
+          securityContext:
+            privileged: true
+          command:
+            - /bin/bash
+            - -lc
+            - |
+              apt-get update -qq && apt-get install -y -qq util-linux
+              nsenter -t 1 -m -u -i -n -- systemctl unmask nginx 2>/dev/null || true
+              nsenter -t 1 -m -u -i -n -- systemctl enable nginx 2>/dev/null || true
+              nsenter -t 1 -m -u -i -n -- systemctl start nginx 2>/dev/null || true
+              echo "nginx restored"

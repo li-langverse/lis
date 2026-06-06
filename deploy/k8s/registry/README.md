@@ -1,8 +1,38 @@
 # lip-registry on engine K8s
 
-Li-native package registry (`lis db start` + registry REST) and **goal-directed platform worker** for [lip.lilangverse.xyz](https://lip.lilangverse.xyz).
+Li-native package registry (`lis db start` + registry REST) and **liserver** (li-httpd) edge for [lip.lilangverse.xyz](https://lip.lilangverse.xyz).
+
+**Edge:** use **liserver** (native `li-httpd`), not nginx/Caddy patch jobs. Config lives in `deploy/edge/lip-registry.httpd.toml`.
 
 Mirrors patterns from `li-cursor-agents/deploy/k8s/engine/` (engine nodeSelector, `ghcr-li-langverse` pull secret, always-on worker loop).
+
+## liserver (li-httpd) — preferred edge
+
+```bash
+# Validate + flatten profile
+lis http validate deploy/edge/lip-registry.httpd.http-only.toml
+lis http flatten deploy/edge/lip-registry.httpd.http-only.toml -o /run/li-httpd/lip-registry.runtime.conf
+
+# On engine host (systemd, replaces nginx on :80)
+LIP_REGISTRY_UPSTREAM=http://127.0.0.1:30422 \
+  ./scripts/lip-liserver-apply.sh --http-only --stop-nginx --install-systemd
+
+# Or via lis CLI
+LIP_REGISTRY_UPSTREAM=http://127.0.0.1:30422 lis http apply-lip --http-only --stop-nginx --install-systemd
+```
+
+Build `li-httpd` first: `(cd ../li-httpd && ./scripts/build-li-httpd.sh)`.
+
+Docker image (when Docker is available):
+
+```bash
+docker build -f lis/docker/Dockerfile.liserver -t ghcr.io/li-langverse/lis:liserver .
+docker push ghcr.io/li-langverse/lis:liserver
+kubectl -n lip-registry create secret generic lip-liserver-bin --from-file=li-httpd=../li-httpd/build/li-httpd
+kubectl apply -f deployment-lip-liserver.yaml
+```
+
+**WAN note:** `77.23.124.82` currently terminates at upstream Caddy; engine liserver listens on `192.168.10.32:80`. Point upstream Caddy to engine `:80` once liserver is active.
 
 ## Prerequisites
 

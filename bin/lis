@@ -16,7 +16,9 @@ Usage:
   lis db status
   lis db migrate [--to REV]
   lis http validate <config.toml>
+  lis http flatten <config.toml> [-o PATH]
   lis http render-caddy <config.toml> [-o PATH]
+  lis http apply-lip [--http-only|--tls]   # liserver edge (li-httpd) for lip.lilangverse.xyz
   lis staging up [--with-supabase]
   lis staging down
 
@@ -268,6 +270,29 @@ lis_http_render_caddy() {
   fi
 }
 
+lis_http_flatten() {
+  local cfg="$1"
+  shift
+  local out=""
+  local flatten=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -o|--output) out="$2"; shift 2 ;;
+      *) echo "lis http flatten: unknown $1" >&2; exit 1 ;;
+    esac
+  done
+  flatten="${LI_HTTPD_ROOT:-${LIS_ROOT}/../li-httpd}/scripts/flatten-httpd-config.py"
+  [[ -f "$flatten" ]] || { echo "lis http flatten: missing $flatten (set LI_HTTPD_ROOT)" >&2; exit 1; }
+  [[ -n "$out" ]] || { echo "lis http flatten: -o PATH required" >&2; exit 1; }
+  lis_http_validate "$cfg"
+  export PYTHONPATH="$(dirname "$flatten"):${LIS_ROOT}/scripts${PYTHONPATH:+:$PYTHONPATH}"
+  python3 "$flatten" "$cfg" -o "$out"
+}
+
+lis_http_apply_lip() {
+  exec "${LIS_ROOT}/scripts/lip-liserver-apply.sh" "$@"
+}
+
 lis_staging_up() {
   echo "lis staging: application stacks live in your app repo (e.g. cap-jmk-launchpad/majico.xyz deploy/staging)." >&2
   echo "See https://github.com/cap-jmk-launchpad/majico.xyz/tree/main/deploy/staging" >&2
@@ -300,6 +325,17 @@ main() {
           local cfg="$1"
           shift
           lis_http_render_caddy "$cfg" "$@"
+          ;;
+        flatten)
+          shift
+          [[ $# -ge 1 ]] || { echo "lis http flatten: config.toml required" >&2; exit 1; }
+          local cfg="$1"
+          shift
+          lis_http_flatten "$cfg" "$@"
+          ;;
+        apply-lip)
+          shift
+          lis_http_apply_lip "$@"
           ;;
         *) echo "lis http: unknown subcommand: $1" >&2; lis_usage; exit 1 ;;
       esac

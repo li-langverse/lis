@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lip-liserver-smoke
+  namespace: lip-registry
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      containers:
+        - name: smoke
+          image: ubuntu:24.04
+          command:
+            - /bin/bash
+            - -lc
+            - |
+              apt-get update -qq && apt-get install -y -qq curl ca-certificates
+              install -m 755 /bin/li-httpd /usr/local/bin/li-httpd
+              cat >/tmp/httpd.conf <<'CONF'
+              listen_port=18080
+              document_root=/var/lib/li-httpd/empty
+              route=GET|/health|exact|proxy
+              upstream_peer=30422
+              leak_censor_enabled=0
+              tls_enabled=0
+              m2_enabled=0
+              m3_enabled=0
+              CONF
+              mkdir -p /var/lib/li-httpd/empty
+              /usr/local/bin/li-httpd /tmp/httpd.conf &
+              sleep 2
+              curl -fsS http://127.0.0.1:18080/health
+              echo
+          volumeMounts:
+            - name: bin
+              mountPath: /bin/li-httpd
+              subPath: li-httpd
+      volumes:
+        - name: bin
+          secret:
+            secretName: lip-liserver-bin
+            defaultMode: 0755
