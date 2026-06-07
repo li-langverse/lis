@@ -1,0 +1,45 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lip-edge-probe
+  namespace: lip-registry
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      hostNetwork: true
+      containers:
+        - name: probe
+          image: python:3.12-slim
+          command:
+            - /bin/bash
+            - -lc
+            - |
+              python3 - <<'PY'
+              import urllib.request
+              targets = [
+                  "http://127.0.0.1:30422/health",
+                  "http://192.168.10.32:30422/health",
+                  "http://10.43.212.3:54321/health",
+                  "http://127.0.0.1/health",
+              ]
+              for u in targets:
+                  try:
+                      r = urllib.request.urlopen(u, timeout=4)
+                      print(u, "->", r.status, r.read()[:120])
+                  except Exception as e:
+                      print(u, "-> FAIL", e)
+              PY
+              echo "=== Caddyfile tail ==="
+              tail -n 40 /host/etc/caddy/Caddyfile 2>/dev/null || tail -n 40 /etc/caddy/Caddyfile
+          volumeMounts:
+            - name: host-etc
+              mountPath: /host/etc
+      volumes:
+        - name: host-etc
+          hostPath:
+            path: /etc

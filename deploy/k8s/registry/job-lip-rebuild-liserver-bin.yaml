@@ -11,22 +11,24 @@ spec:
       restartPolicy: Never
       nodeSelector:
         kubernetes.io/hostname: engine
+      imagePullSecrets:
+        - name: ghcr-li-langverse
       containers:
         - name: build
           image: ghcr.io/li-langverse/lic-ci:ubuntu24-llvm22
-          imagePullSecrets:
-            - name: ghcr-li-langverse
           command:
             - /bin/bash
             - -lc
             - |
               set -euo pipefail
-              LIC_REF="${LIC_GIT_REF:-main}"
+              LIC_REF="${LIC_GIT_REF:-cursor/ph-ml-li-array}"
               git clone --depth 1 --branch "$LIC_REF" https://github.com/li-langverse/lic.git /src/lic
               cd /src/lic
               # Fallback patches if branch lacks liserver edge fixes yet.
               sed -i 's/htonl(INADDR_LOOPBACK)/htonl(INADDR_ANY)/' runtime/li_rt_net.c || true
               sed -i 's/g_lb_mode == HTTPD_LB_MODE_COOKIE;/g_lb_mode == HTTPD_LB_MODE_COOKIE || g_route_count > 1;/' runtime/li_rt_net.c || true
+              sed -i 's/if (g_proxy_snap_ready || g_proxy_snap_recording || slot/if (httpd_proxy_snap_disabled() || g_proxy_snap_ready || g_proxy_snap_recording || slot/' runtime/li_rt_net.c || true
+              sed -i 's/return g_proxy_snap_ready ? 1 : 0;/return (g_proxy_snap_ready \&\& !httpd_proxy_snap_disabled()) ? 1 : 0;/' runtime/li_rt_net.c || true
               ./scripts/build.sh
               ./scripts/build-li-httpd.sh
               test -x build/li-httpd

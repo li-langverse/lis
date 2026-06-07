@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lip-engine-bin-probe
+  namespace: lip-registry
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      hostPID: true
+      hostNetwork: true
+      containers:
+        - name: probe
+          image: ubuntu:24.04
+          securityContext:
+            privileged: true
+          command:
+            - /bin/bash
+            - -lc
+            - |
+              for b in /host/usr/local/bin/li-httpd /host/usr/bin/li-httpd; do
+                [[ -x "$b" ]] && echo "found $b" && "$b" --help 2>&1 | head -3 || true
+              done
+              systemctl is-active nginx 2>/dev/null || nsenter -t 1 -m -u -i -n -- systemctl is-active nginx 2>/dev/null || true
+              systemctl is-active li-httpd-homelab 2>/dev/null || nsenter -t 1 -m -u -i -n -- systemctl is-active li-httpd-homelab 2>/dev/null || true
+          volumeMounts:
+            - name: host-usr
+              mountPath: /host/usr
+      volumes:
+        - name: host-usr
+          hostPath:
+            path: /usr

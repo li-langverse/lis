@@ -34,6 +34,7 @@ data:
     set -euo pipefail
     apt-get update -qq && apt-get install -y -qq curl ca-certificates util-linux
     install -m 755 /bin/li-httpd /usr/local/bin/li-httpd
+    mkdir -p /var/lib/li-httpd/empty /run/li-httpd
     install -m 644 /config/lip-registry.runtime.conf /run/li-httpd/lip-registry.runtime.conf
     nsenter -t 1 -m -u -i -n -- systemctl stop nginx 2>/dev/null || true
     nsenter -t 1 -m -u -i -n -- systemctl disable nginx 2>/dev/null || true
@@ -42,7 +43,6 @@ data:
     nsenter -t 1 -m -u -i -n -- systemctl disable caddy 2>/dev/null || true
     nsenter -t 1 -m -u -i -n -- fuser -k 80/tcp 2>/dev/null || true
     sleep 2
-    mkdir -p /var/lib/li-httpd/empty /run/li-httpd
     curl -fsS http://127.0.0.1:30422/health >/dev/null
     exec /usr/local/bin/li-httpd /run/li-httpd/lip-registry.runtime.conf
 ---
