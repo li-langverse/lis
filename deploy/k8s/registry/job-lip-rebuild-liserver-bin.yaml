@@ -1,0 +1,44 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lip-rebuild-liserver-bin
+  namespace: lip-registry
+spec:
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      containers:
+        - name: build
+          image: ghcr.io/li-langverse/lic-ci:ubuntu24-llvm22
+          imagePullSecrets:
+            - name: ghcr-li-langverse
+          command:
+            - /bin/bash
+            - -lc
+            - |
+              set -euo pipefail
+              LIC_REF="${LIC_GIT_REF:-main}"
+              git clone --depth 1 --branch "$LIC_REF" https://github.com/li-langverse/lic.git /src/lic
+              cd /src/lic
+              # Fallback patches if branch lacks liserver edge fixes yet.
+              sed -i 's/htonl(INADDR_LOOPBACK)/htonl(INADDR_ANY)/' runtime/li_rt_net.c || true
+              sed -i 's/g_lb_mode == HTTPD_LB_MODE_COOKIE;/g_lb_mode == HTTPD_LB_MODE_COOKIE || g_route_count > 1;/' runtime/li_rt_net.c || true
+              ./scripts/build.sh
+              ./scripts/build-li-httpd.sh
+              test -x build/li-httpd
+              install -m 755 build/li-httpd /out/li-httpd
+              /out/li-httpd --help 2>&1 | head -3 || true
+              ls -la /out/li-httpd
+              echo "lip-rebuild-liserver-bin: build ok"
+          volumeMounts:
+            - name: out
+              mountPath: /out
+      volumes:
+        - name: out
+          hostPath:
+            path: /var/lib/lip-registry/build
+            type: DirectoryOrCreate

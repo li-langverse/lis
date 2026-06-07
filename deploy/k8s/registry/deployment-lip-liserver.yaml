@@ -1,4 +1,4 @@
-# liserver bundle: pre-flattened runtime + host install entrypoint.
+# liserver bundle: native li-httpd edge on engine :80 (no socat, no Caddy/nginx).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -9,7 +9,7 @@ metadata:
     app.kubernetes.io/part-of: lip-platform
 data:
   lip-registry.runtime.conf: |
-    listen_port=18080
+    listen_port=80
     document_root=/var/lib/li-httpd/empty
     rate_limit_rps=1000
     rate_limit_burst=2000
@@ -32,22 +32,19 @@ data:
   entrypoint.sh: |
     #!/usr/bin/env bash
     set -euo pipefail
-    apt-get update -qq && apt-get install -y -qq curl ca-certificates socat util-linux
+    apt-get update -qq && apt-get install -y -qq curl ca-certificates util-linux
     install -m 755 /bin/li-httpd /usr/local/bin/li-httpd
-    install -m 644 /config/lip-registry.runtime.conf /tmp/lip-httpd.conf
+    install -m 644 /config/lip-registry.runtime.conf /run/li-httpd/lip-registry.runtime.conf
     nsenter -t 1 -m -u -i -n -- systemctl stop nginx 2>/dev/null || true
     nsenter -t 1 -m -u -i -n -- systemctl disable nginx 2>/dev/null || true
     nsenter -t 1 -m -u -i -n -- systemctl mask nginx 2>/dev/null || true
-    nsenter -t 1 -m -u -i -n -- fuser -k 18080/tcp 2>/dev/null || true
+    nsenter -t 1 -m -u -i -n -- systemctl stop caddy 2>/dev/null || true
+    nsenter -t 1 -m -u -i -n -- systemctl disable caddy 2>/dev/null || true
     nsenter -t 1 -m -u -i -n -- fuser -k 80/tcp 2>/dev/null || true
     sleep 2
-    mkdir -p /var/lib/li-httpd/empty
-    /usr/local/bin/li-httpd /tmp/lip-httpd.conf >/tmp/httpd.log 2>&1 &
-    sleep 5
-    curl -fsS http://127.0.0.1:18080/health || { echo "li-httpd log:"; cat /tmp/httpd.log; exit 1; }
-    echo
-    # li-httpd binds 127.0.0.1; socat exposes WAN/LAN :80.
-    exec socat TCP-LISTEN:80,bind=0.0.0.0,reuseaddr,fork TCP:127.0.0.1:18080
+    mkdir -p /var/lib/li-httpd/empty /run/li-httpd
+    curl -fsS http://127.0.0.1:30422/health >/dev/null
+    exec /usr/local/bin/li-httpd /run/li-httpd/lip-registry.runtime.conf
 ---
 apiVersion: apps/v1
 kind: Deployment

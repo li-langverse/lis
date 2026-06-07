@@ -2,7 +2,7 @@
 
 Li-native package registry (`lis db start` + registry REST) and **liserver** (li-httpd) edge for [lip.lilangverse.xyz](https://lip.lilangverse.xyz).
 
-**Edge:** use **liserver** (native `li-httpd`), not nginx/Caddy patch jobs. Config lives in `deploy/edge/lip-registry.httpd.toml`.
+**Edge:** use **liserver** (native `li-httpd`) on engine `:80`. Do **not** use Caddy/nginx patch jobs — those bypass liserver and are removed from this tree.
 
 Mirrors patterns from `li-cursor-agents/deploy/k8s/engine/` (engine nodeSelector, `ghcr-li-langverse` pull secret, always-on worker loop).
 
@@ -21,14 +21,14 @@ LIP_REGISTRY_UPSTREAM=http://127.0.0.1:30422 \
 LIP_REGISTRY_UPSTREAM=http://127.0.0.1:30422 lis http apply-lip --http-only --stop-nginx --install-systemd
 ```
 
-Build `li-httpd` first: `(cd ../li-httpd && ./scripts/build-li-httpd.sh)`.
+Build `li-httpd` first: `(cd ../lic && ./scripts/build.sh && ./scripts/build-li-httpd.sh)`.
 
-Docker image (when Docker is available):
+On engine cluster (rebuild secret from lic-ci job):
 
 ```bash
-docker build -f lis/docker/Dockerfile.liserver -t ghcr.io/li-langverse/lis:liserver .
-docker push ghcr.io/li-langverse/lis:liserver
-kubectl -n lip-registry create secret generic lip-liserver-bin --from-file=li-httpd=../li-httpd/build/li-httpd
+kubectl apply -f deploy/k8s/registry/job-lip-rebuild-liserver-bin.yaml
+kubectl -n lip-registry wait --for=condition=complete job/lip-rebuild-liserver-bin --timeout=900s
+# then rotate secret from /var/lib/lip-registry/build/li-httpd on engine (see scripts/lip-rebuild-liserver-bin.sh)
 kubectl apply -f deployment-lip-liserver.yaml
 ```
 

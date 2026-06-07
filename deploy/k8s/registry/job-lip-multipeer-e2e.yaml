@@ -12,7 +12,6 @@ spec:
       nodeSelector:
         kubernetes.io/hostname: engine
       hostNetwork: true
-      hostPID: true
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: e2e
@@ -22,63 +21,21 @@ spec:
             - -lc
             - |
               set -euo pipefail
-              apt-get update -qq && apt-get install -y -qq curl ca-certificates socat util-linux
-              install -m 755 /bin/li-httpd /usr/local/bin/li-httpd
-              nsenter -t 1 -m -u -i -n -- systemctl stop nginx 2>/dev/null || true
-              nsenter -t 1 -m -u -i -n -- fuser -k 18080/tcp 2>/dev/null || true
-              nsenter -t 1 -m -u -i -n -- fuser -k 80/tcp 2>/dev/null || true
-              sleep 2
-              cat >/tmp/lip-httpd.conf <<'CONF'
-              listen_port=18080
-              document_root=/var/lib/li-httpd/empty
-              rate_limit_rps=1000
-              rate_limit_burst=2000
-              route=GET|/health|exact|proxy
-              route=HEAD|/health|exact|proxy
-              route=GET|/v1|prefix|proxy
-              route=HEAD|/v1|prefix|proxy
-              route=POST|/v1|prefix|proxy
-              route=PUT|/v1|prefix|proxy
-              upstream_peer=30422
-              leak_censor_enabled=0
-              tls_enabled=0
-              m2_enabled=0
-              m3_enabled=0
-              CONF
-              mkdir -p /var/lib/li-httpd/empty
-              /usr/local/bin/li-httpd /tmp/lip-httpd.conf >/tmp/httpd.log 2>&1 &
-              sleep 5
-              curl -fsS http://127.0.0.1:18080/health || { echo "li-httpd log:"; cat /tmp/httpd.log; exit 1; }
-              echo
-              socat TCP-LISTEN:80,bind=0.0.0.0,reuseaddr,fork TCP:127.0.0.1:18080 &
-              sleep 1
-              curl -fsS -H "Host: lip.lilangverse.xyz" http://127.0.0.1/health
-              echo
+              apt-get update -qq && apt-get install -y -qq curl ca-certificates git
+              LIS_REF="${LIS_GIT_REF:-feat/edge-lis-apply-staging}"
+              git clone --depth 1 --branch "$LIS_REF" https://github.com/li-langverse/lis.git /src/lis
               export LIP_REGISTRY_TOKEN="${LIP_REGISTRY_TOKEN}"
               export REGISTRY_HOST=127.0.0.1
-              export REGISTRY_PORT=18080
+              export REGISTRY_PORT=80
               export LIP_REGISTRY_HOST=lip.lilangverse.xyz
               export LIP_PEER_A_URL=http://lip-peer-a.lip-registry.svc.cluster.local:8765/v1
               export LIP_PEER_B_URL=http://lip-peer-b.lip-registry.svc.cluster.local:8766/v1
-              bash /scripts/lip-multipeer-e2e.sh
+              curl -fsS -H "Host: lip.lilangverse.xyz" http://127.0.0.1:80/health
+              echo
+              bash /src/lis/scripts/lip-multipeer-e2e.sh
           env:
             - name: LIP_REGISTRY_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: lip-registry-secrets
                   key: LI_REGISTRY_DEV_TOKEN
-          volumeMounts:
-            - name: scripts
-              mountPath: /scripts
-            - name: bin
-              mountPath: /bin/li-httpd
-              subPath: li-httpd
-      volumes:
-        - name: scripts
-          configMap:
-            name: lip-multipeer-e2e-script
-            defaultMode: 0755
-        - name: bin
-          secret:
-            secretName: lip-liserver-bin
-            defaultMode: 0755
