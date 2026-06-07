@@ -1,0 +1,51 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lip-put-debug
+  namespace: lip-registry
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      hostNetwork: true
+      containers:
+        - name: debug
+          image: ubuntu:24.04
+          command:
+            - /bin/bash
+            - -lc
+            - |
+              set -eu
+              apt-get update -qq && apt-get install -y -qq curl netcat-openbsd python3
+              payload="put-smoke-test-12345"
+              digest="sha256:$(printf '%s' "$payload" | sha256sum | awk '{print $1}')"
+              echo "payload=[$payload] digest=$digest"
+              echo "== raw nc to :80 =="
+              req=$(printf 'PUT /v1/blobs/%s HTTP/1.1\r\nHost: lip.lilangverse.xyz\r\nAuthorization: Bearer %s\r\nContent-Type: application/vnd.li.package+tar\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s' "$digest" "$TOKEN" "${#payload}" "$payload")
+              printf '%s' "$req" | nc -w 5 127.0.0.1 80 | head -c 500
+              echo
+              echo "== curl :80 =="
+              curl -sS -m 10 -w "\nHTTP:%{http_code}\n" -X PUT \
+                -H "Host: lip.lilangverse.xyz" \
+                -H "Authorization: Bearer ${TOKEN}" \
+                -H "Content-Type: application/vnd.li.package+tar" \
+                --data-binary "$payload" \
+                "http://127.0.0.1:80/v1/blobs/${digest}"
+              echo
+              echo "== curl :30422 direct =="
+              curl -sS -m 10 -w "\nHTTP:%{http_code}\n" -X PUT \
+                -H "Host: lip.lilangverse.xyz" \
+                -H "Authorization: Bearer ${TOKEN}" \
+                -H "Content-Type: application/vnd.li.package+tar" \
+                --data-binary "$payload" \
+                "http://127.0.0.1:30422/v1/blobs/${digest}"
+          env:
+            - name: TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: LI_REGISTRY_DEV_TOKEN
