@@ -15,6 +15,7 @@ from typing import Any
 
 from routes.auth.verify import resolve_registry_bearer
 
+from .agent import validate_publish_payload
 from .errors import RegistryError
 
 
@@ -125,46 +126,48 @@ class MockRegistryStore:
 
     def _require_publish_token(self, token: str | None) -> None:
         if not token:
-            raise RegistryError("unauthorized", "missing bearer token", status=401)
+            raise RegistryError(
+                "unauthorized",
+                "missing bearer token",
+                status=401,
+                remediation="Set LIP_REGISTRY_TOKEN or run lip login --device",
+            )
         ctx = resolve_registry_bearer(token)
         if ctx is None:
-            raise RegistryError("unauthorized", "invalid or expired bearer token", status=401)
+            raise RegistryError(
+                "unauthorized",
+                "invalid or expired bearer token",
+                status=401,
+                remediation="Set LIP_REGISTRY_TOKEN or run lip login --device",
+            )
         scope = str(ctx.get("scope", ""))
         if scope not in ("publish", "publish+yank"):
-            raise RegistryError("forbidden", "token scope does not allow publish", status=403)
+            raise RegistryError(
+                "forbidden",
+                "token scope does not allow publish",
+                status=403,
+                remediation="Mint a token with publish or publish+yank scope",
+            )
+
+    def validate_publish(self, name: str, body: dict[str, Any]) -> dict[str, Any]:
+        return validate_publish_payload(name, body, check_blob=True)
 
     def publish(self, name: str, body: dict[str, Any], *, token: str | None) -> dict[str, Any]:
         self._require_publish_token(token)
+        dry = validate_publish_payload(name, body, check_blob=True)
+        if not dry["ok"]:
+            first = dry["errors"][0]
+            raise RegistryError(
+                first["error"],
+                first["message"],
+                status=403 if first["error"] == "forbidden" else 412 if first["error"] == "precondition_failed" else 400,
+                remediation=first.get("remediation"),
+            )
         version = body.get("version")
-        if not version:
-            raise RegistryError("bad_request", "version is required")
         tree = body.get("tree_digest")
         proof = body.get("proof_digest")
         coverage = body.get("coverage_pct")
-        if not tree or not proof or coverage is None:
-            raise RegistryError("bad_request", "tree_digest, proof_digest, coverage_pct required")
-        if float(coverage) < 80:
-            raise RegistryError(
-                "forbidden",
-                "coverage_pct below minimum (80)",
-                status=403,
-                coverage_pct=coverage,
-            )
-        if os.environ.get("LIP_REGISTRY_REQUIRE_BLOB", "1") not in ("0", "false", "no"):
-            from .blob_store import get_blob_store
-
-            artifact = body.get("artifact_digest") or tree
-            try:
-                get_blob_store().head(str(artifact))
-            except RegistryError as exc:
-                if exc.status == 404:
-                    raise RegistryError(
-                        "precondition_failed",
-                        "artifact blob must be uploaded before publish (PUT /v1/blobs/{artifact_digest})",
-                        status=412,
-                    ) from exc
-                raise
-        key = (name, version)
+        key = (name, str(version))
         if key in self.versions:
             existing = self.versions[key]
             if existing.tree_digest != tree:

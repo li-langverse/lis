@@ -6,6 +6,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 export LI_REGISTRY_QUIET=1
+export LI_REGISTRY_DEV_TOKEN="${LI_REGISTRY_DEV_TOKEN:-test-token}"
 
 LIDB_ROOT="${LIDB_ROOT:-$ROOT/../lidb}"
 HAS_LIORM=0

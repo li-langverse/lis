@@ -79,6 +79,7 @@ class BlobStore:
                 "bad_request",
                 "body digest mismatch",
                 status=400,
+                remediation=f"Re-PUT blob at PUT /v1/blobs/{expected} with exact bytes",
                 expected=expected,
                 computed=f"sha256:{got}",
             )

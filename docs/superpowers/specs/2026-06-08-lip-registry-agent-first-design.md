@@ -206,17 +206,17 @@ Ship as `docs/automations/lip-publish-on-tag.md` + prefill via Cursor Automation
 
 ### Phase 1 — Agent API + CLI JSON (1 week)
 
-- [ ] `GET /v1/agent/capabilities`
-- [ ] `POST /v1/publish/validate` + `remediation` on errors
-- [ ] `lip publish|validate --json` + credentials.toml
+- [x] `GET /v1/agent/capabilities`
+- [x] `POST /v1/publish/validate` + `remediation` on errors
+- [x] `lip publish|validate --json` + credentials.toml
 - [ ] Fix liserver `:80` edge (blocker for public URL)
-- [ ] OpenAPI sync for new paths
+- [x] OpenAPI sync for new paths
 
 ### Phase 2 — MCP server (1 week)
 
-- [ ] `lis/mcp/lip-registry/` stdio server, Phase 1 tools
-- [ ] `.cursor/mcp.json` example in `lis/`
-- [ ] Integration test: MCP tool → live registry (mock)
+- [x] `lis/mcp/lip-registry/` stdio server, Phase 1 tools
+- [x] `.cursor/mcp.json` example in `lis/`
+- [x] Integration test: MCP tool → live registry (mock)
 
 ### Phase 3 — Auth for agents (1–2 weeks)
 

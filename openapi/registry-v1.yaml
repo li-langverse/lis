@@ -21,8 +21,44 @@ tags:
     description: Package index and version metadata
   - name: admin
     description: Publish and yank (authenticated)
+  - name: agent
+    description: Agent-first discovery and dry-run validation
 
 paths:
+  /agent/capabilities:
+    get:
+      tags: [agent]
+      operationId: getAgentCapabilities
+      summary: Machine manifest for agents (auth modes, limits, example flows)
+      responses:
+        '200':
+          description: Agent capabilities manifest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentCapabilities'
+
+  /publish/validate:
+    post:
+      tags: [agent]
+      operationId: validatePublish
+      summary: Dry-run publish gates without mutating the index
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidatePublishRequest'
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidatePublishResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
   /packages:
     get:
       tags: [packages]
@@ -423,3 +459,73 @@ components:
         details:
           type: object
           additionalProperties: true
+        remediation:
+          type: string
+          description: Actionable hint for agents and CLI users
+
+    AgentCapabilities:
+      type: object
+      required: [api_version, auth_modes, max_blob_bytes, min_coverage_pct, required_publish_fields]
+      properties:
+        api_version:
+          type: string
+        auth_modes:
+          type: array
+          items:
+            type: string
+        max_blob_bytes:
+          type: integer
+        min_coverage_pct:
+          type: number
+        required_publish_fields:
+          type: array
+          items:
+            type: string
+        optional_publish_fields:
+          type: array
+          items:
+            type: string
+        example_flows:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        endpoints:
+          type: object
+          additionalProperties:
+            type: string
+
+    ValidatePublishRequest:
+      allOf:
+        - type: object
+          required: [name]
+          properties:
+            name:
+              type: string
+              pattern: '^[a-z][a-z0-9_-]*$'
+        - $ref: '#/components/schemas/PublishRequest'
+
+    ValidatePublishResponse:
+      type: object
+      required: [ok, errors, remediation]
+      properties:
+        ok:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: object
+            required: [field, error, message, remediation]
+            properties:
+              field:
+                type: string
+              error:
+                type: string
+              message:
+                type: string
+              remediation:
+                type: string
+        remediation:
+          type: array
+          items:
+            type: string

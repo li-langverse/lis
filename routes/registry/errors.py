@@ -6,9 +6,18 @@ from typing import Any
 
 
 class RegistryError(Exception):
-    def __init__(self, error: str, message: str, status: int = 400, **details: Any) -> None:
+    def __init__(
+        self,
+        error: str,
+        message: str,
+        status: int = 400,
+        *,
+        remediation: str | None = None,
+        **details: Any,
+    ) -> None:
         super().__init__(message)
         self.error = error
         self.message = message
         self.status = status
+        self.remediation = remediation
         self.details = details

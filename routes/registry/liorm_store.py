@@ -34,6 +34,8 @@ class RegistryStore(Protocol):
 
     def get_package_version(self, name: str, version: str) -> dict[str, Any]: ...
 
+    def validate_publish(self, name: str, body: dict[str, Any]) -> dict[str, Any]: ...
+
     def publish(self, name: str, body: dict[str, Any], *, token: str | None) -> dict[str, Any]: ...
 
     def yank(self, name: str, version: str, reason: str, *, token: str | None) -> dict[str, Any]: ...
@@ -145,6 +147,9 @@ class LiormRegistryStore:
                 "yanked": bool(row.get("yanked") in (True, "1", 1, "true")),
             }
         return self._backing.get_package_version(name, version)
+
+    def validate_publish(self, name: str, body: dict[str, Any]) -> dict[str, Any]:
+        return self._backing.validate_publish(name, body)
 
     def publish(self, name: str, body: dict[str, Any], *, token: str | None) -> dict[str, Any]:
         if not token:

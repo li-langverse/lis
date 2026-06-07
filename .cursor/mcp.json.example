@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "lip-registry": {
+      "command": "python",
+      "args": ["-m", "lip_registry_mcp"],
+      "cwd": "${workspaceFolder}/mcp/lip-registry",
+      "env": {
+        "LIP_REGISTRY_URL": "https://lip.lilangverse.xyz/v1",
+        "LIP_REGISTRY_TOKEN": "${env:LIP_REGISTRY_TOKEN}",
+        "PYTHONPATH": "${workspaceFolder}/mcp/lip-registry"
+      }
+    }
+  }
+}

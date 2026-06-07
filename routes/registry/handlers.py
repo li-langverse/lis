@@ -9,6 +9,7 @@ from urllib.parse import parse_qs, urlparse
 
 from routes.auth.handlers import handle_auth_request
 
+from .agent import get_agent_capabilities, remediation_for_error
 from .blob_store import get_blob_store, normalize_digest
 from .errors import RegistryError
 from .peer_store import get_peer_store
@@ -37,6 +38,9 @@ def _error_response(exc: RegistryError) -> tuple[int, dict[str, str], bytes]:
     body: dict[str, Any] = {"error": exc.error, "message": exc.message}
     if exc.details:
         body["details"] = exc.details
+    remediation = exc.remediation or remediation_for_error(exc.error, exc.message, exc.details or None)
+    if remediation:
+        body["remediation"] = remediation
     return _json_response(exc.status, body)
 
 
@@ -91,6 +95,28 @@ def handle_request(
             "stub": backend == "mock" or backend == "liorm",
         }
         return _json_response(200, body)
+
+    if method == "GET" and route == "/v1/agent/capabilities":
+        return _json_response(200, get_agent_capabilities())
+
+    if method == "POST" and route == "/v1/publish/validate":
+        try:
+            payload = json.loads(body or b"{}")
+        except json.JSONDecodeError:
+            return _json_response(
+                400,
+                {
+                    "error": "bad_request",
+                    "message": "invalid JSON body",
+                    "remediation": "Send JSON with name, version, tree_digest, proof_digest, coverage_pct",
+                },
+            )
+        name = str(payload.get("name") or payload.get("package") or "")
+        try:
+            result = store.validate_publish(name, payload)
+            return _json_response(200, result)
+        except RegistryError as exc:
+            return _error_response(exc)
 
     if route == "/v1/openapi.yaml":
         from pathlib import Path
