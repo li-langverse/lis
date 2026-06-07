@@ -59,6 +59,50 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
+  /audit:
+    get:
+      tags: [agent]
+      operationId: queryAuditLog
+      summary: Query registry access audit events
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: package
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Audit event page
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [events, total, limit, offset]
+                properties:
+                  events:
+                    type: array
+                    items:
+                      type: object
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '401':
+          description: Missing audit scope
+
   /packages:
     get:
       tags: [packages]

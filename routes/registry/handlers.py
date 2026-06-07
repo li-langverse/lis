@@ -8,8 +8,10 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from routes.auth.handlers import handle_auth_request
+from routes.auth.verify import resolve_audit_bearer
 
 from .agent import get_agent_capabilities, remediation_for_error
+from .audit_store import query_audit
 from .blob_store import get_blob_store, normalize_digest
 from .errors import RegistryError
 from .peer_store import get_peer_store
@@ -117,6 +119,26 @@ def handle_request(
             return _json_response(200, result)
         except RegistryError as exc:
             return _error_response(exc)
+
+    if method == "GET" and route == "/v1/audit":
+        if resolve_audit_bearer(_parse_bearer(headers)) is None:
+            return _json_response(
+                401,
+                {
+                    "error": "unauthorized",
+                    "message": "audit scope bearer or session required",
+                    "remediation": "Mint API token with audit scope or login and use session JWT",
+                },
+            )
+        try:
+            result = query_audit(
+                package=qs.get("package", [None])[0],
+                limit=_query_int(qs, "limit", 50),
+                offset=_query_int(qs, "offset", 0),
+            )
+            return _json_response(200, result)
+        except ValueError as exc:
+            return _json_response(400, {"error": "bad_request", "message": str(exc)})
 
     if route == "/v1/openapi.yaml":
         from pathlib import Path

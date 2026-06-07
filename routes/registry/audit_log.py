@@ -41,6 +41,17 @@ def log_access(
     if extra:
         row.update(extra)
     line = json.dumps(row, separators=(",", ":"))
+    try:
+        from .audit_store import append_event
+
+        audit_row = dict(row)
+        if extra:
+            for k in ("package_name", "package_version", "event"):
+                if k in extra:
+                    audit_row[k] = extra[k]
+        append_event(audit_row)
+    except Exception:
+        pass
     audit_path = os.environ.get("LIP_REGISTRY_AUDIT_LOG", "").strip()
     if audit_path:
         try:

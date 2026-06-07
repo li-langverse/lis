@@ -17,5 +17,6 @@ data:
   LI_REGISTRY_HOST: "0.0.0.0"
   LIP_BLOB_DIR: /data/blobs
   LIP_REGISTRY_REQUIRE_BLOB: "1"
+  LIP_REGISTRY_ALLOW_DEV_TOKEN: "1"
   LIP_REGISTRY_PUBLIC_URL: "https://lip.lilangverse.xyz/v1"
   LIS_ROOT: /opt/lis

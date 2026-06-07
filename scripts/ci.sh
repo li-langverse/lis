@@ -14,7 +14,14 @@ chmod +x ./li-tests/run_httpd_caddy.sh 2>/dev/null || true
 chmod +x ./li-tests/db/run_cli_stub.sh 2>/dev/null || true
 ./li-tests/db/run_cli_stub.sh
 chmod +x ./tests/registry-api.test 2>/dev/null || true
+export LI_REGISTRY_DEV_TOKEN="${LI_REGISTRY_DEV_TOKEN:-test-token}"
+export LIP_REGISTRY_ALLOW_DEV_TOKEN="${LIP_REGISTRY_ALLOW_DEV_TOKEN:-1}"
+export LI_JWT_SECRET="${LI_JWT_SECRET:-test-jwt-secret-for-ci}"
 ./tests/registry-api.test
+chmod +x ./tests/registry-agent-first.test 2>/dev/null || true
+./tests/registry-agent-first.test
+chmod +x ./tests/registry-audit.test 2>/dev/null || true
+./tests/registry-audit.test
 chmod +x ./scripts/ensure-realtime-venv.sh ./tests/realtime-ws.test 2>/dev/null || true
 ./scripts/ensure-realtime-venv.sh
 export LI_CHANGEFEED_NATIVE=0

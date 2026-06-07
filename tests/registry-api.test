@@ -7,6 +7,8 @@ cd "$ROOT"
 
 export LI_REGISTRY_QUIET=1
 export LI_REGISTRY_DEV_TOKEN="${LI_REGISTRY_DEV_TOKEN:-test-token}"
+export LIP_REGISTRY_ALLOW_DEV_TOKEN="${LIP_REGISTRY_ALLOW_DEV_TOKEN:-1}"
+export LI_JWT_SECRET="${LI_JWT_SECRET:-test-jwt-secret-for-ci}"
 
 LIDB_ROOT="${LIDB_ROOT:-$ROOT/../lidb}"
 HAS_LIORM=0
@@ -55,15 +57,25 @@ run_registry_smoke() {
   curl -sf "${BASE}/v1/packages" | grep -q '"packages"'
   curl -sf "${BASE}/v1/packages/pkg-ok/0.1.0" | grep -q 'pkg-ok'
 
+  BLOB_DATA="demo-package-bytes-for-integration-test"
+  TREE="$(python3 -c "import hashlib; print('sha256:'+hashlib.sha256(b'demo-package-bytes-for-integration-test').hexdigest())")"
+  PROOF="sha256:$(printf 'd%.0s' {1..64})"
+
+  code=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "${BASE}/v1/blobs/${TREE}" \
+    -H "Authorization: Bearer test-token" \
+    -H "Content-Type: application/octet-stream" \
+    --data-binary "$BLOB_DATA")
+  test "$code" = "201" -o "$code" = "200"
+
   code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASE}/v1/packages/demo-pkg/versions" \
     -H 'Content-Type: application/json' \
-    -d '{"version":"1.0.0","tree_digest":"sha256:'$(printf 'c%.0s' {1..64})'","proof_digest":"sha256:'$(printf 'd%.0s' {1..64})'","coverage_pct":90}')
+    -d "{\"version\":\"1.0.0\",\"tree_digest\":\"${TREE}\",\"proof_digest\":\"${PROOF}\",\"coverage_pct\":90}")
   test "$code" = "401"
 
   code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASE}/v1/packages/demo-pkg/versions" \
     -H 'Authorization: Bearer test-token' \
     -H 'Content-Type: application/json' \
-    -d '{"version":"1.0.0","tree_digest":"sha256:'$(printf 'c%.0s' {1..64})'","proof_digest":"sha256:'$(printf 'd%.0s' {1..64})'","coverage_pct":90}')
+    -d "{\"version\":\"1.0.0\",\"tree_digest\":\"${TREE}\",\"proof_digest\":\"${PROOF}\",\"coverage_pct\":90}")
   test "$code" = "201"
 
   curl -sf "${BASE}/v1/packages?name=demo-pkg" | grep -q '1.0.0'

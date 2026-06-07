@@ -16,7 +16,7 @@ from .errors import AuthError
 from .jwt_util import encode_jwt
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-VALID_SCOPES = frozenset({"publish", "yank", "publish+yank"})
+VALID_SCOPES = frozenset({"publish", "yank", "publish+yank", "audit", "publish+audit"})
 
 
 @dataclass
@@ -49,6 +49,18 @@ class ApiTokenRecord:
 
 
 @dataclass
+class SignupTokenRecord:
+    id: str
+    token_hash: str
+    email_hint: str | None
+    max_uses: int
+    uses: int
+    expires_at: str | None
+    created_by: str | None
+    created_at: str
+
+
+@dataclass
 class MockAuthStore:
     data_dir: Path
     users: dict[str, UserRecord] = field(default_factory=dict)
@@ -56,6 +68,8 @@ class MockAuthStore:
     publishers: dict[str, PublisherRecord] = field(default_factory=dict)
     api_tokens: dict[str, ApiTokenRecord] = field(default_factory=dict)
     token_hash_index: dict[str, str] = field(default_factory=dict)
+    signup_tokens: dict[str, SignupTokenRecord] = field(default_factory=dict)
+    signup_hash_index: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def open(cls, data_dir: str | Path | None = None) -> MockAuthStore:
@@ -87,6 +101,11 @@ class MockAuthStore:
             self.api_tokens[tok.id] = tok
             if tok.revoked_at is None:
                 self.token_hash_index[tok.token_hash] = tok.id
+        for row in raw.get("signup_tokens", []):
+            st = SignupTokenRecord(**row)
+            self.signup_tokens[st.id] = st
+            if st.uses < st.max_uses:
+                self.signup_hash_index[st.token_hash] = st.id
 
     def _save(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -94,11 +113,27 @@ class MockAuthStore:
             "users": [asdict(u) for u in self.users.values()],
             "publishers": [asdict(p) for p in self.publishers.values()],
             "api_tokens": [asdict(t) for t in self.api_tokens.values()],
+            "signup_tokens": [asdict(t) for t in self.signup_tokens.values()],
         }
         self._db_path().write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
-    def signup(self, email: str, password: str, *, publisher_name: str | None = None) -> dict[str, Any]:
+    def signup(
+        self,
+        email: str,
+        password: str,
+        *,
+        publisher_name: str | None = None,
+        signup_token: str | None = None,
+    ) -> dict[str, Any]:
         email = email.strip().lower()
+        if os.environ.get("LIP_REGISTRY_SIGNUP", "").strip().lower() == "gated":
+            if not signup_token:
+                raise AuthError(
+                    "forbidden",
+                    "signup_token required when LIP_REGISTRY_SIGNUP=gated",
+                    status=403,
+                )
+            self._consume_signup_token(signup_token, email_hint=email)
         if not EMAIL_RE.match(email):
             raise AuthError("bad_request", "invalid email", status=400)
         if len(password) < 8:
@@ -256,10 +291,77 @@ class MockAuthStore:
         self._save()
         return {"id": token_id, "revoked_at": now}
 
+    def mint_signup_token(
+        self,
+        *,
+        created_by: str,
+        email_hint: str | None = None,
+        max_uses: int = 1,
+        ttl_hours: int | None = 168,
+    ) -> dict[str, Any]:
+        import secrets
+
+        raw = f"invite_{secrets.token_urlsafe(24)}"
+        token_hash = hash_api_token(raw)
+        now = self._now()
+        expires_at: str | None = None
+        if ttl_hours is not None and ttl_hours > 0:
+            expires_at = (datetime.now(timezone.utc) + timedelta(hours=ttl_hours)).isoformat()
+        rec_id = str(uuid.uuid4())
+        rec = SignupTokenRecord(
+            id=rec_id,
+            token_hash=token_hash,
+            email_hint=email_hint,
+            max_uses=max(1, max_uses),
+            uses=0,
+            expires_at=expires_at,
+            created_by=created_by,
+            created_at=now,
+        )
+        self.signup_tokens[rec_id] = rec
+        self.signup_hash_index[token_hash] = rec_id
+        self._save()
+        return {
+            "id": rec_id,
+            "signup_token": raw,
+            "email_hint": email_hint,
+            "max_uses": rec.max_uses,
+            "expires_at": expires_at,
+            "created_at": now,
+        }
+
+    def _consume_signup_token(self, token: str, *, email_hint: str | None = None) -> None:
+        token_hash = hash_api_token(token.strip())
+        rec_id = self.signup_hash_index.get(token_hash)
+        if not rec_id:
+            raise AuthError("forbidden", "invalid signup_token", status=403)
+        rec = self.signup_tokens.get(rec_id)
+        if not rec or rec.uses >= rec.max_uses:
+            raise AuthError("forbidden", "signup_token exhausted", status=403)
+        if rec.expires_at:
+            try:
+                exp = datetime.fromisoformat(rec.expires_at)
+                if exp.tzinfo is None:
+                    exp = exp.replace(tzinfo=timezone.utc)
+                if exp < datetime.now(timezone.utc):
+                    raise AuthError("forbidden", "signup_token expired", status=403)
+            except ValueError:
+                pass
+        if rec.email_hint and email_hint and rec.email_hint.lower() != email_hint.lower():
+            raise AuthError("forbidden", "signup_token email_hint mismatch", status=403)
+        rec.uses += 1
+        if rec.uses >= rec.max_uses:
+            self.signup_hash_index.pop(token_hash, None)
+        self._save()
+
     def resolve_bearer_token(self, token: str) -> dict[str, Any] | None:
         """Return publisher context for registry publish if token is valid."""
         dev = os.environ.get("LI_REGISTRY_DEV_TOKEN", "").strip()
+        allow_dev = os.environ.get("LIP_REGISTRY_ALLOW_DEV_TOKEN", "") in ("1", "true", "yes")
+        allow_dev = allow_dev or os.environ.get("LI_REGISTRY_MOCK", "") in ("1", "true", "yes")
         if dev and token == dev:
+            if not allow_dev:
+                return None
             return {"publisher_id": "dev", "scope": "publish+yank", "source": "dev_token"}
 
         token_hash = hash_api_token(token)

@@ -66,6 +66,7 @@ def get_agent_capabilities() -> dict[str, Any]:
             "publish": "POST /v1/packages/{name}/versions",
             "list_packages": "GET /v1/packages",
             "openapi": "GET /v1/openapi.yaml",
+            "audit": "GET /v1/audit",
         },
     }
 

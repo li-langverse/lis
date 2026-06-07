@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Audit API + signup token smoke (mock auth store).
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+export LI_REGISTRY_MOCK=1
+export LI_REGISTRY_QUIET=1
+export LIP_REGISTRY_ALLOW_DEV_TOKEN=1
+export LI_REGISTRY_DEV_TOKEN=test-token
+export LI_JWT_SECRET="${LI_JWT_SECRET:-test-jwt-secret-for-ci}"
+export PYTHONPATH="$ROOT"
+
+DATA_DIR="$ROOT/.tmp-audit-$$"
+mkdir -p "$DATA_DIR"
+export LI_DATA_DIR="$DATA_DIR"
+LI_API_PORT="$(python3 -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1]);s.close()')"
+export LI_API_PORT
+
+cleanup() {
+  if [[ -n "${SERVER_PID:-}" ]] && kill -0 "$SERVER_PID" 2>/dev/null; then
+    kill "$SERVER_PID" 2>/dev/null || true
+    wait "$SERVER_PID" 2>/dev/null || true
+  fi
+  rm -rf "$DATA_DIR"
+}
+trap cleanup EXIT
+
+python3 routes/registry/server.py --port "$LI_API_PORT" &
+SERVER_PID=$!
+for _ in $(seq 1 40); do
+  curl -sf "http://127.0.0.1:${LI_API_PORT}/health" >/dev/null 2>&1 && break
+  sleep 0.1
+done
+
+BASE="http://127.0.0.1:${LI_API_PORT}"
+
+# Access log should populate audit store
+curl -sf "${BASE}/v1/agent/capabilities" >/dev/null
+
+code=$(curl -s -o /dev/null -w '%{http_code}' "${BASE}/v1/audit")
+test "$code" = "401"
+
+code=$(curl -s -o "${DATA_DIR}/audit.json" -w '%{http_code}' "${BASE}/v1/audit" \
+  -H "Authorization: Bearer test-token")
+test "$code" = "200"
+grep -q '"events"' "${DATA_DIR}/audit.json"
+
+# Signup token mint requires session
+session=$(curl -sf -X POST "${BASE}/v1/auth/signup" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"audit-admin@example.com","password":"password123","publisher_name":"audit-admin"}' \
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['access_token'])")
+
+invite_json="${DATA_DIR}/invite.json"
+code=$(curl -s -o "$invite_json" -w '%{http_code}' -X POST "${BASE}/v1/auth/signup-tokens" \
+  -H "Authorization: Bearer ${session}" \
+  -H 'Content-Type: application/json' \
+  -d '{"email_hint":"invited@example.com","max_uses":1}')
+test "$code" = "201"
+grep -q signup_token "$invite_json"
+
+echo "registry-audit: OK"
