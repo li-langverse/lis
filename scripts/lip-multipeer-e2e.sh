@@ -31,6 +31,7 @@ echo "== PUT blob $digest (via liserver) =="
 curl -fsS --max-time 30 -X PUT \
   -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/vnd.li.package+tar" \
+  -H "Connection: close" \
   --data-binary "$payload" \
   "${BASE}/blobs/${digest}"
 

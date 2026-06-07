@@ -22,7 +22,7 @@ spec:
             - |
               set -euo pipefail
               apt-get update -qq && apt-get install -y -qq curl ca-certificates git
-              LIS_REF="${LIS_GIT_REF:-feat/edge-lis-apply-staging}"
+              LIS_REF="${LIS_GIT_REF:-feat/lip-registry-p5-edge}"
               git clone --depth 1 --branch "$LIS_REF" https://github.com/li-langverse/lis.git /src/lis
               export LIP_REGISTRY_TOKEN="${LIP_REGISTRY_TOKEN}"
               export REGISTRY_HOST=127.0.0.1

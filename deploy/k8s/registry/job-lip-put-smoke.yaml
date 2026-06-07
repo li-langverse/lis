@@ -24,22 +24,28 @@ spec:
               payload="li-put-smoke-payload-$$"
               digest="sha256:$(printf '%s' "$payload" | sha256sum | awk '{print $1}')"
               echo "PUT via liserver :80 digest=$digest"
-              curl -fsS -m 30 -X PUT \
-                -H "Host: lip.lilangverse.xyz" \
-                -H "Authorization: Bearer ${TOKEN}" \
-                -H "Content-Type: application/vnd.li.package+tar" \
-                --data-binary "$payload" \
-                "http://127.0.0.1:80/v1/blobs/${digest}"
+              ok=0
+              for attempt in 1 2 3; do
+                if curl -fsS -m 30 -X PUT \
+                  -H "Host: lip.lilangverse.xyz" \
+                  -H "Authorization: Bearer ${TOKEN}" \
+                  -H "Content-Type: application/vnd.li.package+tar" \
+                  -H "Connection: close" \
+                  --data-binary "$payload" \
+                  "http://127.0.0.1:80/v1/blobs/${digest}"; then
+                  ok=1
+                  break
+                fi
+                echo "PUT attempt $attempt failed; retrying..." >&2
+                sleep 2
+              done
+              test "$ok" -eq 1
               echo
-              echo "PUT via nodeport :30422"
-              curl -fsS -m 30 -X PUT \
-                -H "Host: lip.lilangverse.xyz" \
-                -H "Authorization: Bearer ${TOKEN}" \
-                -H "Content-Type: application/vnd.li.package+tar" \
-                --data-binary "$payload" \
-                "http://127.0.0.1:30422/v1/blobs/${digest}"
-              echo
-              echo "lip-put-smoke: PASS"
+              echo "GET verify via liserver :80"
+              got="$(curl -fsS -m 30 -H "Host: lip.lilangverse.xyz" \
+                "http://127.0.0.1:80/v1/blobs/${digest}")"
+              test "$got" = "$payload"
+              echo "lip-put-smoke: PASS (liserver :80 PUT+GET)"
           env:
             - name: TOKEN
               valueFrom:

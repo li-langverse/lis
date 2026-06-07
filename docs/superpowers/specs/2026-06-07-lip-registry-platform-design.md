@@ -18,7 +18,8 @@
 ### Gaps
 
 - Main `deployment.yaml` still uses 10Gi PVC only — wire `lip-registry-blobs` PVC or hostPath like bootstrap.
-- PUT via liserver `:80` returns 502 — use `:30422` for blob writes until li-httpd PUT relay fixed.
+- ~~PUT via liserver `:80` returns 502 — use `:30422` for blob writes until li-httpd PUT relay fixed.~~ **Fixed (2026-06-07):** rebuild `lip-liserver-bin` from `lic@cursor/ph-ml-li-array` + upstream reuse patch; verify with `job-lip-put-smoke.yaml`.
+- **Large blob streaming (>16 KiB):** small payloads PUT/GET via `:80` pass; bodies above ~16 KiB may still stall in li-httpd proxy relay (track in lic `li_rt_net.c` streaming path — Phase 5 hardening).
 
 ---
 

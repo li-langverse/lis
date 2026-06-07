@@ -28,8 +28,26 @@ On engine cluster (rebuild secret from lic-ci job):
 ```bash
 kubectl apply -f deploy/k8s/registry/job-lip-rebuild-liserver-bin.yaml
 kubectl -n lip-registry wait --for=condition=complete job/lip-rebuild-liserver-bin --timeout=900s
-# then rotate secret from /var/lib/lip-registry/build/li-httpd on engine (see scripts/lip-rebuild-liserver-bin.sh)
-kubectl apply -f deployment-lip-liserver.yaml
+kubectl apply -f deploy/k8s/registry/job-lip-rotate-liserver-bin.yaml
+kubectl -n lip-registry wait --for=condition=complete job/lip-rotate-liserver-bin --timeout=120s
+kubectl -n lip-registry rollout restart deployment/lip-liserver
+kubectl -n lip-registry rollout status deployment/lip-liserver --timeout=120s
+```
+
+**PUT smoke (liserver :80 only — no NodePort bypass):**
+
+```bash
+kubectl apply -f deploy/k8s/registry/job-lip-put-smoke.yaml
+kubectl -n lip-registry wait --for=condition=complete job/lip-put-smoke --timeout=120s
+kubectl -n lip-registry logs job/lip-put-smoke
+```
+
+**Multipeer E2E (publish + peer fetch via :80):**
+
+```bash
+kubectl apply -f deploy/k8s/registry/job-lip-multipeer-e2e.yaml
+kubectl -n lip-registry wait --for=condition=complete job/lip-multipeer-e2e --timeout=600s
+kubectl -n lip-registry logs job/lip-multipeer-e2e
 ```
 
 **WAN note:** `77.23.124.82` currently terminates at upstream Caddy; engine liserver listens on `192.168.10.32:80`. Point upstream Caddy to engine `:80` once liserver is active.
