@@ -22,11 +22,10 @@ spec:
             - -lc
             - |
               set -eu
-              echo "== SSD mount (host) =="
-              nsenter -t 1 -m -u -i -n -- df -h /var/lib/lip-registry
-              nsenter -t 1 -m -u -i -n -- findmnt -T /var/lib/lip-registry
-              blob_count="$(nsenter -t 1 -m -u -i -n -- find /var/lib/lip-registry/blobs -type f 2>/dev/null | wc -l || echo 0)"
-              echo "blob files on SSD: $blob_count"
+              echo "== blob files on SSD mount =="
+              blob_count="$(find /ssd/blobs -type f 2>/dev/null | wc -l || echo 0)"
+              echo "blob files: $blob_count"
+              df -h /ssd 2>/dev/null || true
               payload="lip-ssd-verify-$(date +%s)"
               digest="sha256:$(printf '%s' "$payload" | sha256sum | awk '{print $1}')"
               echo "== PUT/GET via registry :30422 =="
@@ -46,5 +45,12 @@ spec:
                 secretKeyRef:
                   name: lip-registry-secrets
                   key: LI_REGISTRY_DEV_TOKEN
-          securityContext:
-            privileged: true
+          volumeMounts:
+            - name: ssd
+              mountPath: /ssd
+              readOnly: true
+      volumes:
+        - name: ssd
+          hostPath:
+            path: /var/lib/lip-registry
+            type: Directory
