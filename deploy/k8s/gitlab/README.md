@@ -1,18 +1,47 @@
 # gitlab.lilangverse.xyz on engine K8s
 
-Self-hosted **GitLab CE** via the [official GitLab Helm chart](https://docs.gitlab.com/charts/), pinned to node **engine**, exposed at [gitlab.lilangverse.xyz](https://gitlab.lilangverse.xyz).
+## Recommended: existing Omnibus (live)
+
+**Use the homelab Omnibus GitLab** already running in namespace `gitlab` (NodePort **30481**, pod on **engine**). Expose it at `gitlab.lilangverse.xyz` via **li-httpd** on blackpearl — no second install, no nginx Ingress required.
+
+| Install | Namespace | Hostname(s) | Status |
+|---------|-----------|-------------|--------|
+| **Homelab Omnibus (use this)** | `gitlab` | `gitlab.klaut.pro`, `gitlab.d3bu7.com`, **`gitlab.lilangverse.xyz`** | **Live** on engine |
+| Helm scaffold (below) | `gitlab-lilangverse` | `gitlab.lilangverse.xyz` | **Not deployed** — future option only |
+| klaut.pro VPS | Docker Compose | `gitlab-vps.klaut.pro` | Separate VPS |
+
+### Quick start (Omnibus + edge)
+
+1. Edge route is in [beelink-cleanup/k8s/edge/homelab.httpd.toml](https://github.com/cap-jmk-launchpad/beelink-cleanup/blob/master/k8s/edge/homelab.httpd.toml) (`gitlab.lilangverse.xyz` → `proxy:gitlab` → `127.0.0.1:30481`).
+2. Full guide: [beelink-cleanup/docs/gitlab-lilangverse-setup.md](https://github.com/cap-jmk-launchpad/beelink-cleanup/blob/master/docs/gitlab-lilangverse-setup.md).
+3. From Windows:
+
+```powershell
+cd C:\Users\Julian\Documents\Programming\beelink-cleanup
+.\scripts\deploy-gitlab-lilangverse-edge.ps1 -ApplyEdge
+.\scripts\deploy-gitlab-lilangverse-edge.ps1 -ConfigureGitLabUrl   # after DNS
+```
+
+4. **DNS:** `A` record `gitlab.lilangverse.xyz` → **`77.23.124.82`** (Fritz WAN; same as `lip.lilangverse.xyz`).
+
+### Why not Helm now?
+
+| Blocker | Detail |
+|---------|--------|
+| Duplicate GitLab | Omnibus already uses 50 Gi PVC + 3–6 Gi RAM on engine |
+| Engine overcommitted | 32 CPU / ~64 Gi node already heavily scheduled |
+| No nginx Ingress | Homelab edge is **li-httpd** on blackpearl, not in-cluster Ingress |
+| Data migration | Helm would be a greenfield install — not a hostname swap |
+
+Deploy the Helm chart below only when you intend to **replace** Omnibus (export/import or fresh instance) and have engine headroom.
+
+---
+
+## Helm scaffold (future / greenfield)
+
+Self-hosted **GitLab CE** via the [official GitLab Helm chart](https://docs.gitlab.com/charts/), pinned to node **engine**, namespace `gitlab-lilangverse`.
 
 Mirrors patterns from `deploy/k8s/registry/` (engine `nodeSelector`, nginx `IngressClass`, `*.lilangverse.xyz` TLS secret naming).
-
-## Relation to other GitLab installs
-
-| Install | Namespace | Hostname | Manifests |
-|---------|-----------|----------|-----------|
-| **This scaffold** | `gitlab-lilangverse` | `gitlab.lilangverse.xyz` | `lis-work/deploy/k8s/gitlab/` (Helm) |
-| Homelab Omnibus (live) | `gitlab` | `gitlab.d3bu7.com`, `gitlab.klaut.pro` | `homelab-k3s/k8s/gitlab/` via [beelink-cleanup](https://github.com/cap-jmk-launchpad/homelab-k3s) |
-| klaut.pro VPS | Docker Compose | `gitlab-vps.klaut.pro` | `beelink-cleanup/deploy/cloud-pro-vps/` |
-
-Do **not** apply both Helm (`gitlab-lilangverse`) and Omnibus (`gitlab`) for the same data without a migration plan — they compete for engine RAM and storage.
 
 ## Prerequisites
 
@@ -25,9 +54,9 @@ kubectl label node engine li-langverse.io/node-pool=engine
 # Workloads use: nodeSelector.kubernetes.io/hostname: engine
 ```
 
-- **nginx** `IngressClass` on the cluster (same expectation as `ingress-lip-registry.yaml`)
-- DNS **A** record: `gitlab.lilangverse.xyz` → **`77.23.124.82`** (Fritz WAN / blackpearl edge)
-- Fritz port forward **TCP 80 + 443** → ingress node (same as `lip.lilangverse.xyz`, `majico.d3bu7.com`)
+- **nginx** `IngressClass` on the cluster (same expectation as `ingress-lip-registry.yaml`) — **not present on homelab today**; Omnibus path above avoids this
+- DNS **A** record: `gitlab.lilangverse.xyz` → **`77.23.124.82`**
+- Fritz port forward **TCP 80 + 443** → blackpearl `192.168.10.33`
 - TLS secret `gitlab-lilangverse-tls` in namespace `gitlab-lilangverse` (cert-manager, manual, or upstream terminator)
 
 Homelab kubeconfig example:
@@ -72,7 +101,7 @@ kubectl -n gitlab-lilangverse create secret tls gitlab-lilangverse-tls \
   --cert=fullchain.pem --key=privkey.pem
 ```
 
-**WAN note:** `77.23.124.82` may terminate TLS upstream (Caddy / li-httpd on blackpearl) before nginx ingress on engine — match `global.hosts.https` and ingress TLS to your actual termination point.
+**WAN note:** `77.23.124.82` terminates TLS at **li-httpd on blackpearl** for Omnibus; a Helm install would need either the same edge pattern (NodePort + li-httpd) or a working in-cluster Ingress.
 
 ## 3. Helm install
 
@@ -120,13 +149,14 @@ Sign in as `root` with the password from `GITLAB_ROOT_PASSWORD` (or `kubectl get
 
 ## SSH / git clone
 
-GitLab Shell SSH is **not** configured in this minimal values file. For SSH remotes, add a `gitlab-shell` NodePort or LoadBalancer service and document the host key — or use HTTPS remotes only.
+GitLab Shell SSH is **not** configured in this minimal values file. For SSH remotes, add a `gitlab-shell` NodePort or LoadBalancer service and document the host key — or use HTTPS remotes only. The live Omnibus install exposes SSH on NodePort **30222**.
 
 ## Coexist with lip-registry
 
 - Namespace **`gitlab-lilangverse`** is separate from **`lip-registry`**
 - Same engine node; different PVCs and secrets
 - Both use `*.lilangverse.xyz` DNS → `77.23.124.82`
+- **Do not** run Helm GitLab alongside live Omnibus without reclaiming RAM and disk
 
 ## Uninstall
 
