@@ -84,11 +84,18 @@ data:
       if command -v kubectl >/dev/null 2>&1; then
         return 0
       fi
-      ensure_curl
-      echo "lip-platform-worker: installing kubectl"
-      local ver
-      ver="$(curl -fsSL https://dl.k8s.io/release/stable.txt)"
-      curl -fsSL -o /tmp/kubectl "https://dl.k8s.io/release/${ver}/bin/linux/amd64/kubectl"
+      echo "lip-platform-worker: installing kubectl (python3)"
+      python3 - <<'PY'
+    import ssl
+    import urllib.request
+
+    ctx = ssl.create_default_context()
+    ver = urllib.request.urlopen(
+        "https://dl.k8s.io/release/stable.txt", context=ctx
+    ).read().decode().strip()
+    url = f"https://dl.k8s.io/release/{ver}/bin/linux/amd64/kubectl"
+    urllib.request.urlretrieve(url, "/tmp/kubectl")
+    PY
       install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
       rm -f /tmp/kubectl
     }
@@ -214,6 +221,7 @@ data:
 
     echo "lip-platform-worker: starting loop sleep=${LOOP_SLEEP}s public=${LIP_REGISTRY_PUBLIC_URL}"
     ensure_kubectl
+    ensure_curl
     sync_repos
 
     while true; do
