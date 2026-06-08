@@ -202,4 +202,6 @@ Goals checklist: ConfigMap key `goals-checklist.md`.
 | `ghcr.io/li-langverse/lis:registry-min` | Default in `deployment-lip-platform-worker.yaml` |
 | `lip-registry:latest` | Local k3s / `imagePullPolicy: Never` dev |
 
+**Homelab sideload (tag not on GHCR):** build on blackpearl with `beelink-cleanup/scripts/build-push-lis-registry-min.sh`, then import to engine node containerd with `import-lis-registry-min-to-engine.sh` (SCP + `k3s ctr images import`). Deployment keeps `imagePullPolicy: IfNotPresent` — local image satisfies pull once imported.
+
 Update `image:` in the Deployment after push.
