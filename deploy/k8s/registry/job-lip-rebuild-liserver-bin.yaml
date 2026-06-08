@@ -22,7 +22,7 @@ spec:
             - |
               set -euo pipefail
               LIC_REF="${LIC_GIT_REF:-cursor/ph-ml-li-array}"
-              git clone --depth 1 --branch "$LIC_REF" https://github.com/li-langverse/lic.git /src/lic
+              git clone --depth 1 --branch "$LIC_REF" https://gitlab.lilangverse.xyz/li-langverse/lic.git /src/lic
               cd /src/lic
               # Fallback patches if branch lacks liserver edge fixes yet.
               sed -i 's/htonl(INADDR_LOOPBACK)/htonl(INADDR_ANY)/' runtime/li_rt_net.c || true

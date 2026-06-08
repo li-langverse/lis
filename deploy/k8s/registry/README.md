@@ -87,6 +87,7 @@ Create once in `lip-registry` (copy from `secret.yaml.example` when present, or)
 kubectl -n lip-registry create secret generic lip-registry-secrets \
   --from-literal=LI_REGISTRY_DEV_TOKEN="$LI_REGISTRY_DEV_TOKEN" \
   --from-literal=LI_JWT_SECRET="$LI_JWT_SECRET" \
+  --from-literal=GITLAB_TOKEN="$GITLAB_TOKEN" \
   --from-literal=GH_TOKEN="$GH_TOKEN" \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
@@ -95,7 +96,8 @@ kubectl -n lip-registry create secret generic lip-registry-secrets \
 |-----|---------|
 | `LI_REGISTRY_DEV_TOKEN` | Registry publish + `toy-registry-smoke` |
 | `LI_JWT_SECRET` | Auth routes (Phase 1) |
-| `GH_TOKEN` | Worker git clone (`lip`, `lis` private deps) |
+| `GITLAB_TOKEN` | Worker git clone from `gitlab.lilangverse.xyz` (primary) |
+| `GH_TOKEN` | Transition fallback for git clone |
 
 Do not commit real values. Rotate `LI_REGISTRY_DEV_TOKEN` before public launch.
 
@@ -179,8 +181,8 @@ Router: forward WAN **80/443** to the **ingress controller node**, not port **54
 | Variable | Default | Meaning |
 |----------|---------|---------|
 | `LIP_REGISTRY_PUBLIC_URL` | `https://lip.lilangverse.xyz/v1` | External smoke URL |
-| `LIP_REPO_URL` | `https://github.com/li-langverse/lip.git` | Clone for smokes |
-| `LIS_REPO_URL` | `https://github.com/li-langverse/lis.git` | Clone for smokes |
+| `LIP_REPO_URL` | `https://gitlab.lilangverse.xyz/li-langverse/lip.git` | Clone for smokes |
+| `LIS_REPO_URL` | `https://gitlab.lilangverse.xyz/li-langverse/lis.git` | Clone for smokes |
 | `LIS_CLI_GIT_URL` | same as `LIS_REPO_URL` | Git install test dep |
 | `LI_PLATFORM_LOOP_SLEEP_SEC` | `300` | Loop interval |
 | `LI_PLATFORM_STATUS_FILE` | `/data/status.json` | Goal status output |

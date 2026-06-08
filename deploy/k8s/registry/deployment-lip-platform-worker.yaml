@@ -107,6 +107,11 @@ spec:
                   name: lip-registry-secrets
                   key: GH_TOKEN
                   optional: true
+            - name: GITLAB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: GITLAB_TOKEN
             - name: GITHUB_TOKEN
               valueFrom:
                 secretKeyRef:

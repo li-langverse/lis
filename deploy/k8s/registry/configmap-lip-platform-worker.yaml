@@ -18,11 +18,11 @@ data:
   LIP_REGISTRY_PUBLIC_URL: "https://lip.lilangverse.xyz/v1"
   LIP_REGISTRY_INCLUSTER_URL: "http://lip-registry-api.lip-registry.svc.cluster.local:54321/v1"
   LIP_REGISTRY_HEALTH_URL: "http://lip-registry-api.lip-registry.svc.cluster.local:54321/health"
-  LIP_REPO_URL: "https://github.com/li-langverse/lip.git"
+  LIP_REPO_URL: "https://gitlab.lilangverse.xyz/li-langverse/lip.git"
   LIP_REPO_BRANCH: "main"
-  LIS_REPO_URL: "https://github.com/li-langverse/lis.git"
+  LIS_REPO_URL: "https://gitlab.lilangverse.xyz/li-langverse/lis.git"
   LIS_REPO_BRANCH: "main"
-  LIS_CLI_GIT_URL: "https://github.com/li-langverse/lis.git"
+  LIS_CLI_GIT_URL: "https://gitlab.lilangverse.xyz/li-langverse/lis.git"
   LIS_CLI_GIT_TAG: "main"
   TOY_REGISTRY_FIXTURE: "fixtures/pkg_toy_registry"
   TOY_GIT_INSTALL_PACKAGE: "packages/lis-cli"
@@ -86,7 +86,10 @@ data:
 
     git_clone_or_update() {
       local url="$1" dest="$2" branch="${3:-main}"
-      if [[ -n "${GH_TOKEN:-}" ]]; then
+      if [[ -n "${GITLAB_TOKEN:-}" ]]; then
+        url="${url/https:\/\//https://oauth2:${GITLAB_TOKEN}@}"
+        git config --global url."https://oauth2:${GITLAB_TOKEN}@gitlab.lilangverse.xyz/".insteadOf "https://gitlab.lilangverse.xyz/" 2>/dev/null || true
+      elif [[ -n "${GH_TOKEN:-}" ]]; then
         url="${url/https:\/\//https://x-access-token:${GH_TOKEN}@}"
         git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/" 2>/dev/null || true
       fi
