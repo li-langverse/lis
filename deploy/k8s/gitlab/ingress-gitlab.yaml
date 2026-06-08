@@ -1,0 +1,35 @@
+# gitlab.lilangverse.xyz — optional ingress when Helm chart ingress is disabled.
+# Prefer global.ingress in values.yaml; apply this only if install: false there.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gitlab-lilangverse
+  namespace: gitlab-lilangverse
+  labels:
+    app.kubernetes.io/name: gitlab
+    app.kubernetes.io/part-of: lilangverse-platform
+    li-langverse.io/cluster: engine
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "512m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "600"
+    # Uncomment when cert-manager ClusterIssuer is installed:
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: gitlab.lilangverse.xyz
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gitlab-webservice-default
+                port:
+                  number: 8181
+  tls:
+    - hosts:
+        - gitlab.lilangverse.xyz
+      secretName: gitlab-lilangverse-tls

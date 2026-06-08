@@ -1,0 +1,124 @@
+# GitLab CE Helm values — homelab on engine (gitlab.lilangverse.xyz).
+# Chart: https://gitlab.com/gitlab-org/charts/gitlab
+# Install: see README.md
+
+global:
+  edition: ce
+  hosts:
+    domain: lilangverse.xyz
+    https: true
+    gitlab:
+      name: gitlab.lilangverse.xyz
+  ingress:
+    enabled: true
+    class: nginx
+    configureCertmanager: false
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/proxy-body-size: "512m"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+      nginx.ingress.kubernetes.io/proxy-connect-timeout: "600"
+    tls:
+      enabled: true
+      secretName: gitlab-lilangverse-tls
+  # Pin heavy Omnibus workloads to engine (same as homelab-k3s gitlab StatefulSet).
+  nodeSelector:
+    kubernetes.io/hostname: engine
+  time_zone: UTC
+
+# Do not install bundled ingress controller — use cluster nginx IngressClass.
+nginx-ingress:
+  enabled: false
+
+certmanager:
+  install: false
+  installCRDs: false
+
+prometheus:
+  install: false
+
+grafana:
+  enabled: false
+
+gitlab-runner:
+  install: false
+
+# Container registry (optional; disable if unused to save RAM).
+registry:
+  enabled: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+postgresql:
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+redis:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+gitlab:
+  webservice:
+    minReplicas: 1
+    maxReplicas: 1
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: "2"
+        memory: 4Gi
+  sidekiq:
+    minReplicas: 1
+    maxReplicas: 1
+    resources:
+      requests:
+        cpu: 200m
+        memory: 1Gi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+  gitaly:
+    resources:
+      requests:
+        cpu: 200m
+        memory: 1Gi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+    persistence:
+      enabled: true
+      size: 50Gi
+      storageClass: local-path
+  toolbox:
+    backups:
+      cron:
+        enabled: false
+  kas:
+    minReplicas: 1
+    maxReplicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+pages:
+  enabled: false
