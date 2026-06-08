@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lip-put-debug2
+  namespace: lip-registry
+spec:
+  ttlSecondsAfterFinished: 120
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      hostNetwork: true
+      containers:
+        - name: d
+          image: curlimages/curl:8.14.1
+          command: ["/bin/sh", "-lc"]
+          args:
+            - |
+              set -e
+              payload="debug2-$$"
+              digest="sha256:$(printf '%s' "$payload" | sha256sum | awk '{print $1}')"
+              curl -fsS -m 10 -H "Host: lip.lilangverse.xyz" -H "Connection: close" http://127.0.0.1/health
+              echo
+              curl -fsS -m 30 -X PUT -H "Host: lip.lilangverse.xyz" -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/vnd.li.package+tar" -H "Connection: close" --data-binary "$payload" "http://127.0.0.1:80/v1/blobs/${digest}"
+              echo
+              curl -fsS -m 30 -H "Host: lip.lilangverse.xyz" -H "Connection: close" "http://127.0.0.1:80/v1/blobs/${digest}"
+              echo
+              echo "PASS"
+          env:
+            - name: TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: LI_REGISTRY_DEV_TOKEN
