@@ -72,10 +72,19 @@ data:
     PUBLIC_BASE="${LIP_REGISTRY_PUBLIC_URL%/v1}"
     mkdir -p "$(dirname "$STATUS_FILE")" "$WORKSPACE"
 
+    ensure_curl() {
+      if command -v curl >/dev/null 2>&1; then
+        return 0
+      fi
+      echo "lip-platform-worker: installing curl"
+      apt-get update -qq && apt-get install -y -qq curl ca-certificates
+    }
+
     ensure_kubectl() {
       if command -v kubectl >/dev/null 2>&1; then
         return 0
       fi
+      ensure_curl
       echo "lip-platform-worker: installing kubectl"
       local ver
       ver="$(curl -fsSL https://dl.k8s.io/release/stable.txt)"
