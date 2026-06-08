@@ -32,7 +32,7 @@ spec:
                 sleep 5
               done
               test "$ready" -eq 1
-              payload="li-put-smoke-payload-$$"
+              payload="li-put-smoke-$(date +%s)-$$"
               digest="sha256:$(printf '%s' "$payload" | sha256sum | awk '{print $1}')"
               echo "PUT via liserver :80 digest=$digest"
               ok=0
@@ -53,6 +53,7 @@ spec:
               test "$ok" -eq 1
               echo
               echo "GET verify via liserver :80"
+              sleep 1
               ok_get=0
               for attempt in 1 2 3; do
                 if got="$(curl -fsS -m 30 -H "Host: lip.lilangverse.xyz" -H "Connection: close" \

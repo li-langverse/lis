@@ -32,6 +32,7 @@ spec:
               # P5 edge: disable upstream keep-alive reuse — pooled fd hangs on 2nd request.
               sed -i 's/s->proxy_up_reuse = resp_keep;/s->proxy_up_reuse = 0;/' runtime/li_rt_net.c || true
               sed -i 's/s->proxy_up_reuse = 1;/s->proxy_up_reuse = 0;/g' runtime/li_rt_net.c || true
+              sed -i 's/upstream_pool_prewarm_all();/((void)0); \/* lip edge: no prewarm *\//' runtime/li_rt_net.c || true
               ./scripts/build.sh
               ./scripts/build-li-httpd.sh
               test -x build/li-httpd

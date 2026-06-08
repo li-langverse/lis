@@ -32,9 +32,6 @@ data:
   entrypoint.sh: |
     #!/usr/bin/env bash
     set -euo pipefail
-    if ! command -v curl >/dev/null || ! command -v nsenter >/dev/null; then
-      apt-get update -qq && apt-get install -y -qq curl ca-certificates util-linux
-    fi
     install -m 755 /bin/li-httpd /usr/local/bin/li-httpd
     mkdir -p /var/lib/li-httpd/empty /run/li-httpd
     install -m 644 /config/lip-registry.runtime.conf /run/li-httpd/lip-registry.runtime.conf
@@ -74,15 +71,26 @@ spec:
         kubernetes.io/hostname: engine
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
+      imagePullSecrets:
+        - name: ghcr-li-langverse
       containers:
         - name: liserver
-          image: ubuntu:24.04
+          image: ghcr.io/li-langverse/lic-ci:ubuntu24-llvm22
           securityContext:
             privileged: true
           command: ["/bin/bash", "/config/entrypoint.sh"]
           ports:
             - containerPort: 80
               protocol: TCP
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 80
+              httpHeaders:
+                - name: Host
+                  value: lip.lilangverse.xyz
+            periodSeconds: 10
+            failureThreshold: 30
           readinessProbe:
             httpGet:
               path: /health
@@ -90,19 +98,8 @@ spec:
               httpHeaders:
                 - name: Host
                   value: lip.lilangverse.xyz
-            initialDelaySeconds: 90
             periodSeconds: 15
-            failureThreshold: 8
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 80
-              httpHeaders:
-                - name: Host
-                  value: lip.lilangverse.xyz
-            initialDelaySeconds: 120
-            periodSeconds: 30
-            failureThreshold: 6
+            failureThreshold: 4
           volumeMounts:
             - name: li-httpd-bin
               mountPath: /bin/li-httpd
