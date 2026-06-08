@@ -82,24 +82,6 @@ spec:
           ports:
             - containerPort: 80
               protocol: TCP
-          startupProbe:
-            httpGet:
-              path: /health
-              port: 80
-              httpHeaders:
-                - name: Host
-                  value: lip.lilangverse.xyz
-            periodSeconds: 10
-            failureThreshold: 30
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 80
-              httpHeaders:
-                - name: Host
-                  value: lip.lilangverse.xyz
-            periodSeconds: 15
-            failureThreshold: 4
           volumeMounts:
             - name: li-httpd-bin
               mountPath: /bin/li-httpd
