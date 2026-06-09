@@ -46,10 +46,9 @@ spec:
               LIS_DIR=/opt/lis
               if [[ ! -d "$LIS_DIR/.git" ]]; then
                 LIS_REPO_URL="${LIS_REPO_URL:-https://gitlab.lilangverse.xyz/li-langverse/lis.git}"
-                if [[ -n "${GITLAB_TOKEN:-}" ]]; then
+                if [[ "$LIS_REPO_URL" == *gitlab.lilangverse.xyz* && -n "${GITLAB_TOKEN:-}" ]]; then
                   git config --global url."https://oauth2:${GITLAB_TOKEN}@gitlab.lilangverse.xyz/".insteadOf "https://gitlab.lilangverse.xyz/" 2>/dev/null || true
-                elif [[ -n "${GH_TOKEN:-}" ]]; then
-                  LIS_REPO_URL="https://github.com/li-langverse/lis.git"
+                elif [[ "$LIS_REPO_URL" == *github.com* && -n "${GH_TOKEN:-}" ]]; then
                   git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/" 2>/dev/null || true
                 fi
                 git clone --depth 1 "$LIS_REPO_URL" "$LIS_DIR"
@@ -156,10 +155,9 @@ spec:
               LIS_DIR=/opt/lis
               if [[ ! -d "$LIS_DIR/.git" ]]; then
                 LIS_REPO_URL="${LIS_REPO_URL:-https://gitlab.lilangverse.xyz/li-langverse/lis.git}"
-                if [[ -n "${GITLAB_TOKEN:-}" ]]; then
+                if [[ "$LIS_REPO_URL" == *gitlab.lilangverse.xyz* && -n "${GITLAB_TOKEN:-}" ]]; then
                   git config --global url."https://oauth2:${GITLAB_TOKEN}@gitlab.lilangverse.xyz/".insteadOf "https://gitlab.lilangverse.xyz/" 2>/dev/null || true
-                elif [[ -n "${GH_TOKEN:-}" ]]; then
-                  LIS_REPO_URL="https://github.com/li-langverse/lis.git"
+                elif [[ "$LIS_REPO_URL" == *github.com* && -n "${GH_TOKEN:-}" ]]; then
                   git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/" 2>/dev/null || true
                 fi
                 git clone --depth 1 "$LIS_REPO_URL" "$LIS_DIR"

@@ -104,10 +104,13 @@ data:
 
     git_clone_or_update() {
       local url="$1" dest="$2" branch="${3:-main}"
-      if [[ -n "${GITLAB_TOKEN:-}" ]]; then
+      case "$url" in
+        https://*|http://*|git@*|ssh://*) ;;
+        *) echo "lip-platform-worker: not a hosted git URL: $url" >&2; return 1 ;;
+      esac
+      if [[ "$url" == *gitlab.lilangverse.xyz* && -n "${GITLAB_TOKEN:-}" ]]; then
         git config --global url."https://oauth2:${GITLAB_TOKEN}@gitlab.lilangverse.xyz/".insteadOf "https://gitlab.lilangverse.xyz/" 2>/dev/null || true
-      elif [[ -n "${GH_TOKEN:-}" && "$url" == *github.com* ]]; then
-        url="${url/https:\/\//https://x-access-token:${GH_TOKEN}@}"
+      elif [[ "$url" == *github.com* && -n "${GH_TOKEN:-}" ]]; then
         git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/" 2>/dev/null || true
       fi
       if [[ ! -d "$dest/.git" ]]; then

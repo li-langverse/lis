@@ -23,10 +23,9 @@ spec:
               set -euo pipefail
               LIC_REF="${LIC_GIT_REF:-cursor/ph-ml-li-array}"
               LIC_REPO_URL="${LIC_REPO_URL:-https://gitlab.lilangverse.xyz/li-langverse/lic.git}"
-              if [[ -n "${GITLAB_TOKEN:-}" ]]; then
+              if [[ "$LIC_REPO_URL" == *gitlab.lilangverse.xyz* && -n "${GITLAB_TOKEN:-}" ]]; then
                 git config --global url."https://oauth2:${GITLAB_TOKEN}@gitlab.lilangverse.xyz/".insteadOf "https://gitlab.lilangverse.xyz/" 2>/dev/null || true
-              elif [[ -n "${GH_TOKEN:-}" ]]; then
-                LIC_REPO_URL="https://github.com/li-langverse/lic.git"
+              elif [[ "$LIC_REPO_URL" == *github.com* && -n "${GH_TOKEN:-}" ]]; then
                 git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/" 2>/dev/null || true
               fi
               git clone --depth 1 --branch "$LIC_REF" "$LIC_REPO_URL" /src/lic
