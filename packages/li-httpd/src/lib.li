@@ -711,7 +711,8 @@ def proxy_li_start(epfd: var int, slot: var int, hdr_end: int, keep: int) raises
   if up < 0:
     return -1
   var he0: int = httpd_inject_traceparent_slot_i(slot, hdr_end)
-  var he: int = httpd_proxy_compact_req_hdr_i(slot, he0)
+  var he1: int = httpd_inject_proxy_forward_headers_i(slot, he0)
+  var he: int = httpd_proxy_compact_req_hdr_i(slot, he1)
   var ok: int = httpd_li_proxy_mark_active_i(epfd, slot, up, he, keep)
   if ok < 0:
     var reuse: int = 0
