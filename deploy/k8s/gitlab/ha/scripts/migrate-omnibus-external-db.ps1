@@ -33,19 +33,6 @@ Exec-Gitlab "gitlab-backup create SKIP=registry,artifacts,builds,pages,lfs,terra
 Write-Host "==> Stop Puma/Sidekiq"
 Exec-Gitlab "gitlab-ctl stop puma sidekiq"
 
-Write-Host "==> Dump embedded PostgreSQL"
-Exec-Gitlab "pg_dump -h /var/opt/gitlab/postgresql -U gitlab -d gitlabhq_production -Fc -f /var/opt/gitlab/backups/embedded_pre_ha.dump"
-
-Write-Host "==> Restore to external PostgreSQL"
-$pgPw = kubectl -n $Ns get secret gitlab-postgresql-secret -o jsonpath='{.data.postgresql-password}' | ForEach-Object {
-    [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($_))
-}
-$restoreCmd = @"
-export PGPASSWORD='$pgPw'
-pg_restore -h $dbHost -U gitlab -d gitlabhq_production --clean --if-exists --no-owner --role=gitlab /var/opt/gitlab/backups/embedded_pre_ha.dump 2>&1 | tail -20
-"@
-Exec-Gitlab $restoreCmd
-
 Write-Host "==> Patch omnibus.rb in secret (external DB + Redis)"
 $omnibus = kubectl -n $Ns get secret gitlab-secrets -o jsonpath='{.data.omnibus\.rb}' | ForEach-Object {
     [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($_))
@@ -76,6 +63,13 @@ Write-Host "==> Rolling restart Omnibus to pick up config"
 kubectl -n $Ns delete pod $Pod --wait=true
 kubectl -n $Ns wait --for=condition=ready pod/$Pod --timeout=1200s
 
-Write-Host "==> Verify database host"
-Exec-Gitlab "grep -E \"host:|adapter:\" /var/opt/gitlab/gitlab-rails/etc/database.yml | head -4"
+Write-Host "==> Restore backup into external PostgreSQL (needs >=8Gi memory limit on gitlab pod)"
+$backup = Exec-Gitlab "ls -1t /var/opt/gitlab/backups/*_gitlab_backup.tar 2>/dev/null | head -1"
+$backupId = ($backup -split '_gitlab_backup.tar$')[0] -replace '.*/',''
+Exec-Gitlab "gitlab-ctl stop puma sidekiq && gitlab-backup restore BACKUP=$backupId force=yes 2>&1 | tail -15"
+Exec-Gitlab "gitlab-ctl start puma sidekiq"
+
+Write-Host "==> Verify database host + project count"
+Exec-Gitlab "grep -E 'host:|adapter:' /var/opt/gitlab/gitlab-rails/etc/database.yml | head -4"
+Exec-Gitlab "gitlab-rails runner 'puts Project.count'"
 Write-Host "Migration complete. Verify: curl -H 'Host: gitlab.lilangverse.xyz' http://<nodeport>/api/v4/version"

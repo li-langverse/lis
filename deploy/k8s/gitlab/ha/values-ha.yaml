@@ -5,6 +5,17 @@
 
 global:
   edition: ce
+  appConfig:
+    object_store:
+      enabled: false
+    artifacts:
+      enabled: false
+    lfs:
+      enabled: false
+    uploads:
+      enabled: false
+    packages:
+      enabled: false
   hosts:
     domain: lilangverse.xyz
     https: true
@@ -30,9 +41,9 @@ global:
 nginx-ingress:
   enabled: false
 
-certmanager:
-  install: false
-  installCRDs: false
+installCertmanager: false
+certmanager-issuer:
+  email: admin@lilangverse.xyz
 
 prometheus:
   install: false

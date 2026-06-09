@@ -50,6 +50,7 @@ if ($DryRun) {
 & docker @dockerArgs upgrade --install $Release gitlab/gitlab `
     --namespace gitlab `
     --timeout 1200s `
+    --disable-openapi-validation `
     -f /values/values-ha.yaml
 
 Write-Host "Waiting for webservice pods..."

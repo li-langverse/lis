@@ -1,5 +1,16 @@
 # gitlab.lilangverse.xyz on engine K8s
 
+## HA status (2026-06-09)
+
+| Layer | Status |
+|-------|--------|
+| **Shared PostgreSQL** | `gitlab-postgresql.gitlab.svc:5432` (StatefulSet, 20 Gi) |
+| **Shared Redis** | `gitlab-redis.gitlab.svc:6379` |
+| **Omnibus webservice** | 1 pod (`gitlab-0`), external DB + Redis, 65 projects |
+| **2+ webservice replicas** | Phase 2 — Helm chart (`ha/values-ha.yaml`, `ha/scripts/deploy-helm-ha.ps1`) |
+
+See **[ha/README.md](ha/README.md)** for architecture, backup, and Helm migration.
+
 ## Recommended: existing Omnibus (live)
 
 **Use the homelab Omnibus GitLab** already running in namespace `gitlab` (NodePort **30481**, pod on **engine**). Expose it at `gitlab.lilangverse.xyz` via **li-httpd** on blackpearl — no second install, no nginx Ingress required.
