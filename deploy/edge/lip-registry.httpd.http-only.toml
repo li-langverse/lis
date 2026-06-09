@@ -15,6 +15,7 @@ self_signed = { dev = true, days = 90, key_type = "ed25519" }
 [limits]
 max_body = "32m"
 max_header = "32k"
+proxy_max_response_body = "64m"
 rate_limit_rps = 1000
 rate_limit_burst = 2000
 

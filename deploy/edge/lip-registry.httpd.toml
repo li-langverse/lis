@@ -22,6 +22,7 @@ renew_before_days = 30
 [limits]
 max_body = "32m"
 max_header = "32k"
+proxy_max_response_body = "64m"
 rate_limit_rps = 1000
 rate_limit_burst = 2000
 
