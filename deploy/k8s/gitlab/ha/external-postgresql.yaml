@@ -1,0 +1,121 @@
+# Shared PostgreSQL for GitLab (Omnibus external DB or Helm chart).
+# Single primary — add read replica in Phase 2 if needed.
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitlab-postgresql
+  namespace: gitlab
+  labels:
+    app: gitlab-postgresql
+    app.kubernetes.io/name: gitlab-postgresql
+    app.kubernetes.io/part-of: gitlab-ha
+    li-langverse.io/cluster: engine
+spec:
+  type: ClusterIP
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: postgresql
+  selector:
+    app: gitlab-postgresql
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitlab-postgresql-hl
+  namespace: gitlab
+  labels:
+    app: gitlab-postgresql
+    app.kubernetes.io/name: gitlab-postgresql
+spec:
+  clusterIP: None
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: postgresql
+  selector:
+    app: gitlab-postgresql
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: gitlab-postgresql
+  namespace: gitlab
+  labels:
+    app: gitlab-postgresql
+    app.kubernetes.io/name: gitlab-postgresql
+    app.kubernetes.io/part-of: gitlab-ha
+spec:
+  serviceName: gitlab-postgresql-hl
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gitlab-postgresql
+  template:
+    metadata:
+      labels:
+        app: gitlab-postgresql
+    spec:
+      nodeSelector:
+        li-langverse.io/node-pool: engine
+      securityContext:
+        fsGroup: 999
+      containers:
+        - name: postgresql
+          image: postgres:16.4-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgresql
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: gitlab
+            - name: POSTGRES_DB
+              value: gitlabhq_production
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gitlab-postgresql-secret
+                  key: postgresql-password
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U gitlab -d gitlabhq_production
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U gitlab -d gitlabhq_production
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          app: gitlab-postgresql
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 20Gi

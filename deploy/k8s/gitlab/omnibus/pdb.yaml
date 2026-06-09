@@ -1,0 +1,13 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: gitlab-omnibus
+  namespace: gitlab
+  labels:
+    app: gitlab
+    app.kubernetes.io/part-of: gitlab-ha
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: gitlab

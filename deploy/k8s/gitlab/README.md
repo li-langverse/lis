@@ -51,7 +51,7 @@ Mirrors patterns from `deploy/k8s/registry/` (engine `nodeSelector`, nginx `Ingr
 
 ```bash
 kubectl label node engine li-langverse.io/node-pool=engine
-# Workloads use: nodeSelector.kubernetes.io/hostname: engine
+# Workloads use: nodeSelector.li-langverse.io/node-pool: engine
 ```
 
 - **nginx** `IngressClass` on the cluster (same expectation as `ingress-lip-registry.yaml`) — **not present on homelab today**; Omnibus path above avoids this

@@ -23,7 +23,7 @@ global:
       secretName: gitlab-lilangverse-tls
   # Pin heavy Omnibus workloads to engine (same as homelab-k3s gitlab StatefulSet).
   nodeSelector:
-    kubernetes.io/hostname: engine
+    li-langverse.io/node-pool: engine
   time_zone: UTC
 
 # Do not install bundled ingress controller — use cluster nginx IngressClass.
@@ -79,10 +79,10 @@ gitlab:
     resources:
       requests:
         cpu: 500m
-        memory: 2Gi
+        memory: 8Gi
       limits:
-        cpu: "2"
-        memory: 4Gi
+        cpu: "4"
+        memory: 12Gi
   sidekiq:
     minReplicas: 1
     maxReplicas: 1
