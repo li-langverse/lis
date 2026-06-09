@@ -195,13 +195,42 @@ Goals checklist: ConfigMap key `goals-checklist.md`.
 - Same engine node; different PVCs and secrets
 - Worker uses `lip-registry-secrets`, not `li-agents-secrets`
 
-## Image tags
+## Image tags (GHCR primary)
+
+Homelab pulls from **`ghcr.io/li-langverse/*`** — not GitLab registry, not local sideload. See [beelink-cleanup/docs/ghcr-image-strategy.md](https://github.com/cap-jmk-launchpad/beelink-cleanup/blob/master/docs/ghcr-image-strategy.md).
 
 | Image | When |
 |-------|------|
 | `ghcr.io/li-langverse/lis:registry-min` | Default in `deployment-lip-platform-worker.yaml` |
-| `lip-registry:latest` | Local k3s / `imagePullPolicy: Never` dev |
+| `lip-registry:latest` | Local build tag only (push to GHCR before deploy) |
 
-**Homelab sideload (tag not on GHCR):** build on blackpearl with `beelink-cleanup/scripts/build-push-lis-registry-min.sh`, then import to engine node containerd with `import-lis-registry-min-to-engine.sh` (SCP + `k3s ctr images import`). Deployment keeps `imagePullPolicy: IfNotPresent` — local image satisfies pull once imported.
+**Build + push (blackpearl or dev host with `write:packages`):**
 
-Update `image:` in the Deployment after push.
+```bash
+bash beelink-cleanup/scripts/build-push-lis-registry-min.sh
+bash beelink-cleanup/scripts/check-ghcr-push.sh   # verify PAT first
+```
+
+**Verify pull secret:** `kubectl -n lip-registry get secret ghcr-li-langverse`
+
+**Rotate pull secret** (after PAT with `read:packages`):
+
+```bash
+kubectl -n lip-registry create secret docker-registry ghcr-li-langverse \
+  --docker-server=ghcr.io --docker-username=li-langverse --docker-password="$GH_TOKEN" \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n lip-registry rollout restart deploy/lip-platform-worker
+```
+
+`imagePullPolicy: IfNotPresent` — kubelet pulls from GHCR once, then reuses cached layers on engine.
+
+### Emergency sideload only (GHCR down)
+
+Do **not** use as default — consumes ~533M+ on engine containerd.
+
+1. `beelink-cleanup/scripts/import-lis-registry-min-to-engine.sh`
+2. Or `kubectl apply -f job-import-lis-registry-min.yaml`
+
+After GHCR tag exists: `beelink-cleanup/scripts/prune-engine-sideloaded-images.sh`
+
+**Engine inventory job:** `kubectl apply -f job-engine-image-inventory.yaml && kubectl -n lip-registry logs job/engine-image-inventory`

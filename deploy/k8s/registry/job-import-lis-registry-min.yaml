@@ -1,4 +1,5 @@
-# One-shot: import ghcr.io/li-langverse/lis:registry-min onto engine node containerd.
+# EMERGENCY ONLY: sideload when ghcr.io/li-langverse/lis:registry-min is unreachable.
+# Default path: push to GHCR (beelink-cleanup/scripts/build-push-lis-registry-min.sh) and pull via ghcr-li-langverse.
 # Prerequisite: image tarball served at IMPORT_URL (default blackpearl :18765).
 apiVersion: batch/v1
 kind: Job

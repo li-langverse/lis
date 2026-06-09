@@ -90,8 +90,8 @@ spec:
         - name: ghcr-li-langverse
       containers:
         - name: worker
-          # Build: docker build -f lis/docker/Dockerfile.supervisor -t lip-registry:latest .
-          # Push:  docker tag lip-registry:latest ghcr.io/li-langverse/lis:registry-min && docker push ...
+          # GHCR primary — pull via ghcr-li-langverse (not local sideload).
+          # Push: bash beelink-cleanup/scripts/build-push-lis-registry-min.sh
           image: ghcr.io/li-langverse/lis:registry-min
           imagePullPolicy: IfNotPresent
           command: ["/bin/bash", "/config/entrypoint.sh"]
