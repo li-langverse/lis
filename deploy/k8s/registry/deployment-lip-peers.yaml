@@ -45,7 +45,14 @@ spec:
               apt-get update -qq && apt-get install -y -qq --no-install-recommends git ca-certificates curl
               LIS_DIR=/opt/lis
               if [[ ! -d "$LIS_DIR/.git" ]]; then
-                git clone --depth 1 https://github.com/li-langverse/lis.git "$LIS_DIR"
+                LIS_REPO_URL="${LIS_REPO_URL:-https://gitlab.lilangverse.xyz/li-langverse/lis.git}"
+                if [[ -n "${GITLAB_TOKEN:-}" ]]; then
+                  git config --global url."https://oauth2:${GITLAB_TOKEN}@gitlab.lilangverse.xyz/".insteadOf "https://gitlab.lilangverse.xyz/" 2>/dev/null || true
+                elif [[ -n "${GH_TOKEN:-}" ]]; then
+                  LIS_REPO_URL="https://github.com/li-langverse/lis.git"
+                  git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/" 2>/dev/null || true
+                fi
+                git clone --depth 1 "$LIS_REPO_URL" "$LIS_DIR"
               fi
               if [[ -d /opt/lis-patch ]]; then
                 cp -f /opt/lis-patch/registry-handlers.py "$LIS_DIR/routes/registry/handlers.py"
@@ -76,6 +83,19 @@ spec:
           envFrom:
             - configMapRef:
                 name: lip-registry-config
+          env:
+            - name: GITLAB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: GITLAB_TOKEN
+                  optional: true
+            - name: GH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: GH_TOKEN
+                  optional: true
           volumeMounts:
             - name: blob-store
               mountPath: /data/blobs
@@ -135,7 +155,14 @@ spec:
               apt-get update -qq && apt-get install -y -qq --no-install-recommends git ca-certificates curl
               LIS_DIR=/opt/lis
               if [[ ! -d "$LIS_DIR/.git" ]]; then
-                git clone --depth 1 https://github.com/li-langverse/lis.git "$LIS_DIR"
+                LIS_REPO_URL="${LIS_REPO_URL:-https://gitlab.lilangverse.xyz/li-langverse/lis.git}"
+                if [[ -n "${GITLAB_TOKEN:-}" ]]; then
+                  git config --global url."https://oauth2:${GITLAB_TOKEN}@gitlab.lilangverse.xyz/".insteadOf "https://gitlab.lilangverse.xyz/" 2>/dev/null || true
+                elif [[ -n "${GH_TOKEN:-}" ]]; then
+                  LIS_REPO_URL="https://github.com/li-langverse/lis.git"
+                  git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/" 2>/dev/null || true
+                fi
+                git clone --depth 1 "$LIS_REPO_URL" "$LIS_DIR"
               fi
               if [[ -d /opt/lis-patch ]]; then
                 cp -f /opt/lis-patch/registry-handlers.py "$LIS_DIR/routes/registry/handlers.py"
@@ -166,6 +193,19 @@ spec:
           envFrom:
             - configMapRef:
                 name: lip-registry-config
+          env:
+            - name: GITLAB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: GITLAB_TOKEN
+                  optional: true
+            - name: GH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: GH_TOKEN
+                  optional: true
           volumeMounts:
             - name: blob-store
               mountPath: /data/blobs

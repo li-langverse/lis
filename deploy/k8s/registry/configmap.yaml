@@ -20,3 +20,5 @@ data:
   LIP_REGISTRY_ALLOW_DEV_TOKEN: "1"
   LIP_REGISTRY_PUBLIC_URL: "https://lip.lilangverse.xyz/v1"
   LIS_ROOT: /opt/lis
+  LIC_REPO_URL: "https://gitlab.lilangverse.xyz/li-langverse/lic.git"
+  LIS_REPO_URL: "https://gitlab.lilangverse.xyz/li-langverse/lis.git"

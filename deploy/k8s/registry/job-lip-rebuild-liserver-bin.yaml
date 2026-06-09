@@ -22,7 +22,14 @@ spec:
             - |
               set -euo pipefail
               LIC_REF="${LIC_GIT_REF:-cursor/ph-ml-li-array}"
-              git clone --depth 1 --branch "$LIC_REF" https://github.com/li-langverse/lic.git /src/lic
+              LIC_REPO_URL="${LIC_REPO_URL:-https://gitlab.lilangverse.xyz/li-langverse/lic.git}"
+              if [[ -n "${GITLAB_TOKEN:-}" ]]; then
+                git config --global url."https://oauth2:${GITLAB_TOKEN}@gitlab.lilangverse.xyz/".insteadOf "https://gitlab.lilangverse.xyz/" 2>/dev/null || true
+              elif [[ -n "${GH_TOKEN:-}" ]]; then
+                LIC_REPO_URL="https://github.com/li-langverse/lic.git"
+                git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/" 2>/dev/null || true
+              fi
+              git clone --depth 1 --branch "$LIC_REF" "$LIC_REPO_URL" /src/lic
               cd /src/lic
               # Fallback patches if branch lacks liserver edge fixes yet.
               sed -i 's/htonl(INADDR_LOOPBACK)/htonl(INADDR_ANY)/' runtime/li_rt_net.c || true
@@ -40,6 +47,22 @@ spec:
               /out/li-httpd --help 2>&1 | head -3 || true
               ls -la /out/li-httpd
               echo "lip-rebuild-liserver-bin: build ok"
+          envFrom:
+            - configMapRef:
+                name: lip-registry-config
+          env:
+            - name: GITLAB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: GITLAB_TOKEN
+                  optional: true
+            - name: GH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: GH_TOKEN
+                  optional: true
           volumeMounts:
             - name: out
               mountPath: /out

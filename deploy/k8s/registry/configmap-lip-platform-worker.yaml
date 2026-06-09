@@ -24,6 +24,8 @@ data:
   LIS_REPO_BRANCH: "main"
   LIS_CLI_GIT_URL: "https://gitlab.lilangverse.xyz/li-langverse/lis.git"
   LIS_CLI_GIT_TAG: "main"
+  LIC_REPO_URL: "https://gitlab.lilangverse.xyz/li-langverse/lic.git"
+  LIC_REPO_BRANCH: "cursor/ph-ml-li-array"
   TOY_REGISTRY_FIXTURE: "fixtures/pkg_toy_registry"
   TOY_GIT_INSTALL_PACKAGE: "packages/lis-cli"
   LI_PLATFORM_WORKSPACE: "/data/workspace"
@@ -103,9 +105,8 @@ data:
     git_clone_or_update() {
       local url="$1" dest="$2" branch="${3:-main}"
       if [[ -n "${GITLAB_TOKEN:-}" ]]; then
-        url="${url/https:\/\//https://oauth2:${GITLAB_TOKEN}@}"
         git config --global url."https://oauth2:${GITLAB_TOKEN}@gitlab.lilangverse.xyz/".insteadOf "https://gitlab.lilangverse.xyz/" 2>/dev/null || true
-      elif [[ -n "${GH_TOKEN:-}" ]]; then
+      elif [[ -n "${GH_TOKEN:-}" && "$url" == *github.com* ]]; then
         url="${url/https:\/\//https://x-access-token:${GH_TOKEN}@}"
         git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/" 2>/dev/null || true
       fi

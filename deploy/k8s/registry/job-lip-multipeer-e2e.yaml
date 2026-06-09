@@ -23,7 +23,14 @@ spec:
               set -euo pipefail
               apt-get update -qq && apt-get install -y -qq curl ca-certificates git
               LIS_REF="${LIS_GIT_REF:-feat/lip-registry-p5-edge}"
-              git clone --depth 1 --branch "$LIS_REF" https://github.com/li-langverse/lis.git /src/lis
+              LIS_REPO_URL="${LIS_REPO_URL:-https://gitlab.lilangverse.xyz/li-langverse/lis.git}"
+              if [[ -n "${GITLAB_TOKEN:-}" ]]; then
+                git config --global url."https://oauth2:${GITLAB_TOKEN}@gitlab.lilangverse.xyz/".insteadOf "https://gitlab.lilangverse.xyz/" 2>/dev/null || true
+              elif [[ -n "${GH_TOKEN:-}" ]]; then
+                LIS_REPO_URL="https://github.com/li-langverse/lis.git"
+                git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/" 2>/dev/null || true
+              fi
+              git clone --depth 1 --branch "$LIS_REF" "$LIS_REPO_URL" /src/lis
               export LIP_REGISTRY_TOKEN="${LIP_REGISTRY_TOKEN}"
               export REGISTRY_HOST=127.0.0.1
               export REGISTRY_PORT=80
@@ -33,6 +40,22 @@ spec:
               curl -fsS -H "Host: lip.lilangverse.xyz" http://127.0.0.1:80/health
               echo
               bash /src/lis/scripts/lip-multipeer-e2e.sh
+          envFrom:
+            - configMapRef:
+                name: lip-registry-config
+          env:
+            - name: GITLAB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: GITLAB_TOKEN
+                  optional: true
+            - name: GH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: GH_TOKEN
+                  optional: true
           env:
             - name: LIP_REGISTRY_TOKEN
               valueFrom:

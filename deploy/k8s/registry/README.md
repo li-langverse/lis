@@ -183,8 +183,11 @@ Router: forward WAN **80/443** to the **ingress controller node**, not port **54
 | `LIP_REGISTRY_PUBLIC_URL` | `https://lip.lilangverse.xyz/v1` | External smoke URL |
 | `LIP_REPO_URL` | `https://gitlab.lilangverse.xyz/li-langverse/lip.git` | Clone for smokes |
 | `LIS_REPO_URL` | `https://gitlab.lilangverse.xyz/li-langverse/lis.git` | Clone for smokes |
+| `LIC_REPO_URL` | `https://gitlab.lilangverse.xyz/li-langverse/lic.git` | liserver rebuild + lic smokes |
 | `LIS_CLI_GIT_URL` | same as `LIS_REPO_URL` | Git install test dep |
 | `LI_PLATFORM_LOOP_SLEEP_SEC` | `300` | Loop interval |
+All homelab cluster git clones use **GitLab primary** (GITLAB_TOKEN); GH_TOKEN is transition fallback only. See org rule gitlab-primary-github-mirror.
+
 | `LI_PLATFORM_STATUS_FILE` | `/data/status.json` | Goal status output |
 
 Goals checklist: ConfigMap key `goals-checklist.md`.
