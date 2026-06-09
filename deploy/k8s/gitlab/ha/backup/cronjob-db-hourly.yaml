@@ -44,6 +44,8 @@ spec:
                   export SCRIPT_DIR=/scripts
                   sh /scripts/backup-db.sh
               env:
+                - name: GITLAB_DB_TARGET
+                  value: embedded
                 - name: PGHOST
                   value: gitlab-postgresql.gitlab.svc.cluster.local
                 - name: PGPORT

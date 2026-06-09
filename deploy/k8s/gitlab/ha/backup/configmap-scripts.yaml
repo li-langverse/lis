@@ -143,12 +143,26 @@ data:
         | gzip -9 > "$outfile"
     }
 
-    if PGPASSWORD="${PGPASSWORD:-}" pg_isready -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -q 2>/dev/null; then
-      dump_external
-    else
-      echo "backup-db: external PostgreSQL unreachable, using embedded Omnibus"
-      dump_embedded
-    fi
+
+    DB_TARGET="${GITLAB_DB_TARGET:-auto}"
+    case "$DB_TARGET" in
+      embedded)
+        echo "backup-db: GITLAB_DB_TARGET=embedded (Omnibus socket)"
+        dump_embedded
+        ;;
+      external)
+        echo "backup-db: GITLAB_DB_TARGET=external"
+        dump_external
+        ;;
+      *)
+        if PGPASSWORD="${PGPASSWORD:-}" pg_isready -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -q 2>/dev/null; then
+          dump_external
+        else
+          echo "backup-db: external PostgreSQL unreachable, using embedded Omnibus"
+          dump_embedded
+        fi
+        ;;
+    esac
 
     size="$(wc -c < "$outfile" | tr -d ' ')"
     min_size="${MIN_BACKUP_BYTES:-100000}"

@@ -41,6 +41,8 @@ spec:
               sh /scripts/backup-db.sh
               ls -lh /backups/hourly/
           env:
+                - name: GITLAB_DB_TARGET
+                  value: embedded
             - name: PGHOST
               value: gitlab-postgresql.gitlab.svc.cluster.local
             - name: PGPORT

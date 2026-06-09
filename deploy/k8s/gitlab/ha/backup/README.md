@@ -24,8 +24,9 @@ Rotation is idempotent: `rotate-backups.sh` sorts by filename (timestamp embedde
 
 ## Database source
 
-1. **External PostgreSQL** (`gitlab-postgresql.gitlab.svc.cluster.local`) when reachable — uses `gitlab-postgresql-secret`.
-2. **Embedded Omnibus** fallback — `kubectl exec gitlab-0` + `gitlab-ctl exec postgresql pg_dump` (current live mode).
+**Production (current cluster):** Omnibus **embedded** PostgreSQL only � no `gitlab-postgresql` StatefulSet. Hourly CronJob sets `GITLAB_DB_TARGET=embedded` and dumps via `kubectl exec gitlab-0` + embedded `pg_dump` on socket `/var/opt/gitlab/postgresql`.
+
+**HA phase 1 (optional):** Deploy `../external-postgresql.yaml`, point Omnibus at external DB, then set `GITLAB_DB_TARGET=external` (or `auto`) on the CronJob so dumps use `gitlab-postgresql.gitlab.svc.cluster.local` and `gitlab-postgresql-secret`.
 
 ## Deploy
 
