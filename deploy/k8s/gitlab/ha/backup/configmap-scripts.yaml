@@ -1,0 +1,234 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gitlab-backup-scripts
+  namespace: gitlab
+  labels:
+    app: gitlab-backup
+data:
+  rotate-backups.sh: |
+    #!/bin/sh
+    # Rotate GitLab backup files by naming convention (lexicographic sort = chronological).
+    set -eu
+
+    BACKUP_ROOT="${BACKUP_ROOT:-/backups}"
+    HOURLY_DIR="${BACKUP_ROOT}/hourly"
+    DAILY_DIR="${BACKUP_ROOT}/daily"
+    WEEKLY_DIR="${BACKUP_ROOT}/weekly"
+    FULL_DIR="${BACKUP_ROOT}/full"
+
+    KEEP_HOURLY="${KEEP_HOURLY:-24}"
+    KEEP_DAILY="${KEEP_DAILY:-7}"
+    KEEP_WEEKLY="${KEEP_WEEKLY:-4}"
+    KEEP_FULL_DAILY="${KEEP_FULL_DAILY:-7}"
+    KEEP_FULL_WEEKLY="${KEEP_FULL_WEEKLY:-4}"
+
+    rotate_keep() {
+      dir="$1"
+      pattern="$2"
+      keep="$3"
+      count=0
+      for f in $(find "$dir" -maxdepth 1 -type f -name "$pattern" 2>/dev/null | sort); do
+        count=$((count + 1))
+      done
+      if [ "$count" -le "$keep" ]; then
+        return 0
+      fi
+      delete_count=$((count - keep))
+      n=0
+      for f in $(find "$dir" -maxdepth 1 -type f -name "$pattern" 2>/dev/null | sort); do
+        if [ "$n" -lt "$delete_count" ]; then
+          echo "rotate: delete expired ${f}"
+          rm -f "$f"
+          n=$((n + 1))
+        fi
+      done
+    }
+
+    promote_daily() {
+      hour="$(date -u +%H)"
+      [ "$hour" = "00" ] || return 0
+
+      today="$(date -u +%Y%m%d)"
+      latest="$(find "$HOURLY_DIR" -maxdepth 1 -type f -name 'gitlab-db-hourly-*.sql.gz' 2>/dev/null | sort | tail -1)"
+      if [ -n "$latest" ]; then
+        dest="${DAILY_DIR}/gitlab-db-daily-${today}.sql.gz"
+        echo "rotate: promote hourly -> daily ${dest}"
+        cp -f "$latest" "$dest"
+      fi
+      rotate_keep "$DAILY_DIR" "gitlab-db-daily-*.sql.gz" "$KEEP_DAILY"
+
+      dow="$(date -u +%u)"
+      if [ "$dow" = "7" ]; then
+        week="$(date -u +%G-W%V)"
+        daily="${DAILY_DIR}/gitlab-db-daily-${today}.sql.gz"
+        if [ -f "$daily" ]; then
+          dest="${WEEKLY_DIR}/gitlab-db-weekly-${week}.sql.gz"
+          echo "rotate: promote daily -> weekly ${dest}"
+          cp -f "$daily" "$dest"
+        fi
+        rotate_keep "$WEEKLY_DIR" "gitlab-db-weekly-*.sql.gz" "$KEEP_WEEKLY"
+      fi
+    }
+
+    promote_full() {
+      hour="$(date -u +%H)"
+      [ "$hour" = "03" ] || return 0
+
+      today="$(date -u +%Y%m%d)"
+      latest="$(find "$FULL_DIR" -maxdepth 1 -type f -name 'gitlab-full-2*.tar' 2>/dev/null | sort | tail -1)"
+      if [ -n "$latest" ]; then
+        dest="${FULL_DIR}/gitlab-full-daily-${today}.tar"
+        echo "rotate: tag full backup -> daily ${dest}"
+        cp -f "$latest" "$dest"
+      fi
+      rotate_keep "$FULL_DIR" "gitlab-full-daily-*.tar" "$KEEP_FULL_DAILY"
+
+      dow="$(date -u +%u)"
+      if [ "$dow" = "1" ]; then
+        week="$(date -u +%G-W%V)"
+        daily="${FULL_DIR}/gitlab-full-daily-${today}.tar"
+        if [ -f "$daily" ]; then
+          dest="${FULL_DIR}/gitlab-full-weekly-${week}.tar"
+          echo "rotate: promote full daily -> weekly ${dest}"
+          cp -f "$daily" "$dest"
+        fi
+        rotate_keep "$FULL_DIR" "gitlab-full-weekly-*.tar" "$KEEP_FULL_WEEKLY"
+      fi
+      # Drop raw timestamped full backups older than the newest daily set.
+      rotate_keep "$FULL_DIR" "gitlab-full-2*.tar" "$KEEP_FULL_DAILY"
+    }
+
+    mkdir -p "$HOURLY_DIR" "$DAILY_DIR" "$WEEKLY_DIR" "$FULL_DIR"
+    rotate_keep "$HOURLY_DIR" "gitlab-db-hourly-*.sql.gz" "$KEEP_HOURLY"
+    promote_daily
+    promote_full
+    echo "rotate: done"
+
+  backup-db.sh: |
+    #!/bin/sh
+    # Hourly PostgreSQL dump -> gzip on gitlab-backup-storage PVC.
+    set -eu
+
+    BACKUP_ROOT="${BACKUP_ROOT:-/backups}"
+    HOURLY_DIR="${BACKUP_ROOT}/hourly"
+    NAMESPACE="${GITLAB_NAMESPACE:-gitlab}"
+    GITLAB_POD="${GITLAB_POD:-gitlab-0}"
+    PG_HOST="${PGHOST:-gitlab-postgresql.gitlab.svc.cluster.local}"
+    PG_PORT="${PGPORT:-5432}"
+    PG_USER="${PGUSER:-gitlab}"
+    PG_DB="${PGDATABASE:-gitlabhq_production}"
+
+    mkdir -p "$HOURLY_DIR"
+    ts="$(date -u +%Y%m%d-%H)"
+    outfile="${HOURLY_DIR}/gitlab-db-hourly-${ts}.sql.gz"
+
+    dump_external() {
+      echo "backup-db: pg_dump via ${PG_HOST}:${PG_PORT}"
+      PGPASSWORD="${PGPASSWORD:?PGPASSWORD required for external dump}" \
+        pg_dump \
+          -h "$PG_HOST" \
+          -p "$PG_PORT" \
+          -U "$PG_USER" \
+          -d "$PG_DB" \
+          --no-owner \
+          --no-acl \
+        | gzip -9 > "$outfile"
+    }
+
+    dump_embedded() {
+      echo "backup-db: pg_dump via Omnibus embedded PostgreSQL (${GITLAB_POD})"
+      kubectl exec -n "$NAMESPACE" "$GITLAB_POD" -c gitlab -- bash -lc \
+        "su - git -s /bin/bash -c '/opt/gitlab/embedded/bin/pg_dump -h /var/opt/gitlab/postgresql -U gitlab -d gitlabhq_production --no-owner --no-acl'" \
+        | gzip -9 > "$outfile"
+    }
+
+    if PGPASSWORD="${PGPASSWORD:-}" pg_isready -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -q 2>/dev/null; then
+      dump_external
+    else
+      echo "backup-db: external PostgreSQL unreachable, using embedded Omnibus"
+      dump_embedded
+    fi
+
+    size="$(wc -c < "$outfile" | tr -d ' ')"
+    min_size="${MIN_BACKUP_BYTES:-100000}"
+    if [ "$size" -lt "$min_size" ]; then
+      echo "backup-db: ERROR output too small (${size} bytes, min ${min_size})" >&2
+      rm -f "$outfile"
+      exit 1
+    fi
+    echo "backup-db: wrote ${outfile} (${size} bytes)"
+    sh "${SCRIPT_DIR:-/scripts}/rotate-backups.sh"
+
+  backup-full.sh: |
+    #!/bin/sh
+    # Daily Omnibus gitlab-backup (DB + repositories) copied to backup PVC.
+    set -eu
+
+    BACKUP_ROOT="${BACKUP_ROOT:-/backups}"
+    FULL_DIR="${BACKUP_ROOT}/full"
+    NAMESPACE="${GITLAB_NAMESPACE:-gitlab}"
+    GITLAB_POD="${GITLAB_POD:-gitlab-0}"
+    SKIP="${GITLAB_BACKUP_SKIP:-registry,artifacts,builds,pages,lfs,terraform_state,packages,ci_secure_files}"
+
+    mkdir -p "$FULL_DIR"
+    ts="$(date -u +%Y%m%d-%H%M)"
+    raw="${FULL_DIR}/gitlab-full-${ts}.tar"
+
+    echo "backup-full: gitlab-backup create SKIP=${SKIP}"
+    kubectl exec -n "$NAMESPACE" "$GITLAB_POD" -c gitlab -- bash -lc \
+      "gitlab-backup create SKIP=${SKIP}"
+
+    latest="$(kubectl exec -n "$NAMESPACE" "$GITLAB_POD" -c gitlab -- bash -lc \
+      'ls -1t /var/opt/gitlab/backups/*_gitlab_backup.tar 2>/dev/null | head -1')"
+    if [ -z "$latest" ]; then
+      echo "backup-full: ERROR no backup tar found in Omnibus" >&2
+      exit 1
+    fi
+
+    echo "backup-full: copy ${latest} -> ${raw}"
+    kubectl exec -n "$NAMESPACE" "$GITLAB_POD" -c gitlab -- cat "$latest" > "$raw"
+
+    size="$(wc -c < "$raw" | tr -d ' ')"
+    if [ "$size" -lt 1048576 ]; then
+      echo "backup-full: ERROR output too small (${size} bytes)" >&2
+      rm -f "$raw"
+      exit 1
+    fi
+    echo "backup-full: wrote ${raw} (${size} bytes)"
+    sh "${SCRIPT_DIR:-/scripts}/rotate-backups.sh"
+
+  test-rotation.sh: |
+    #!/bin/sh
+    # Create synthetic old backup files and verify rotation prunes them.
+    set -eu
+
+    BACKUP_ROOT="${BACKUP_ROOT:-/backups}"
+    HOURLY_DIR="${BACKUP_ROOT}/hourly"
+    mkdir -p "$HOURLY_DIR"
+
+    echo "test-rotation: seed fake hourly files"
+    i=0
+    while [ "$i" -lt 30 ]; do
+      day=$((1 + i / 24))
+      hour=$((i % 24))
+      d=$(printf '199901%02d' "$day")
+      h=$(printf '%02d' "$hour")
+      : > "${HOURLY_DIR}/gitlab-db-hourly-${d}-${h}.sql.gz"
+      i=$((i + 1))
+    done
+
+    before="$(ls -1 "${HOURLY_DIR}"/gitlab-db-hourly-*.sql.gz 2>/dev/null | wc -l | tr -d ' ')"
+    echo "test-rotation: before=${before} files"
+
+    SCRIPT_DIR=/scripts
+    KEEP_HOURLY=24 sh "${SCRIPT_DIR}/rotate-backups.sh"
+
+    after="$(ls -1 "${HOURLY_DIR}"/gitlab-db-hourly-*.sql.gz 2>/dev/null | wc -l | tr -d ' ')"
+    echo "test-rotation: after=${after} files"
+
+    if [ "$after" -ne 24 ]; then
+      echo "test-rotation: FAIL expected 24 hourly files, got ${after}" >&2
+      exit 1
+    fi
+    echo "test-rotation: PASS"

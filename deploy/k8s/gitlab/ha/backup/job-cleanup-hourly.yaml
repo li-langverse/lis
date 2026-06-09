@@ -1,0 +1,42 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gitlab-backup-cleanup-hourly
+  namespace: gitlab
+  labels:
+    app: gitlab-backup
+spec:
+  ttlSecondsAfterFinished: 120
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        li-langverse.io/node-pool: engine
+      containers:
+        - name: cleanup
+          image: alpine:3.20
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              find /backups/hourly -maxdepth 1 -type f -name 'gitlab-db-hourly-*.sql.gz' -size 0 -delete
+              export BACKUP_ROOT=/backups SCRIPT_DIR=/scripts
+              sh /scripts/rotate-backups.sh
+              echo "---"
+              ls -lh /backups/hourly/
+          volumeMounts:
+            - name: backups
+              mountPath: /backups
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: backups
+          persistentVolumeClaim:
+            claimName: gitlab-backup-storage
+        - name: scripts
+          configMap:
+            name: gitlab-backup-scripts
+            defaultMode: 0555

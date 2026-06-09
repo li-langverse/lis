@@ -72,14 +72,20 @@ Then restore repositories into Gitaly (DB already in shared PostgreSQL):
 kubectl exec -it deploy/gitlab-toolbox -n gitlab -- backup-utility --restore -t <timestamp> SKIP=db
 ```
 
-## Backup PostgreSQL
+## Backups (automated)
 
-```bash
-kubectl exec -n gitlab gitlab-postgresql-0 -- pg_dump -U gitlab gitlabhq_production -Fc -f /tmp/gitlab.sql
-kubectl cp gitlab/gitlab-postgresql-0:/tmp/gitlab.sql ./gitlab-$(date +%F).dump
+CronJobs on PVC `gitlab-backup-storage` (`/backups`):
+
+| Job | Schedule | Retention |
+|-----|----------|-----------|
+| `gitlab-backup-db-hourly` | `0 * * * *` | 24 hourly, 7 daily, 4 weekly DB dumps |
+| `gitlab-backup-full-daily` | `0 3 * * *` | 7 daily + 4 weekly Omnibus tars |
+
+```powershell
+.\ha\scripts\deploy-backup.ps1
 ```
 
-Schedule via CronJob in Phase 2.
+See **[backup/README.md](backup/README.md)** for rotation policy, restore, and manual tests.
 
 ## Scale webservice (Helm)
 
@@ -112,6 +118,7 @@ kubectl -n gitlab delete pod -l app=webservice --field-selector='metadata.name!=
 | `ha/values-ha.yaml` | Helm CE HA values (2 webservice) |
 | `ha/scripts/deploy-shared-db.ps1` | Bootstrap shared services |
 | `ha/scripts/migrate-omnibus-external-db.ps1` | Omnibus external DB migration |
-| `ha/scripts/deploy-helm-ha.ps1` | Helm install |
+| `ha/scripts/deploy-backup.ps1` | Backup CronJobs + PVC |
+| `ha/backup/` | Hourly DB + daily full backup manifests |
 | `omnibus/pdb.yaml` | PDB for Omnibus pod |
 | `omnibus/configmap.yaml` | Omnibus base config |

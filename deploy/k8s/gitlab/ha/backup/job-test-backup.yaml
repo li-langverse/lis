@@ -1,0 +1,126 @@
+# Manual test jobs — delete before re-run (names are fixed).
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gitlab-backup-db-test
+  namespace: gitlab
+  labels:
+    app: gitlab-backup
+    backup-type: test-db
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 1
+  activeDeadlineSeconds: 3600
+  template:
+    metadata:
+      labels:
+        app: gitlab-backup
+        backup-type: test-db
+    spec:
+      serviceAccountName: gitlab-backup
+      restartPolicy: Never
+      nodeSelector:
+        li-langverse.io/node-pool: engine
+      containers:
+        - name: backup
+          image: postgres:16.4-alpine
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              apk add --no-cache curl
+              curl -fsSL -o /usr/local/bin/kubectl \
+                "https://dl.k8s.io/release/v1.32.2/bin/linux/amd64/kubectl"
+              chmod +x /usr/local/bin/kubectl
+              export PATH="/usr/local/bin:${PATH}"
+              export BACKUP_ROOT=/backups
+              export SCRIPT_DIR=/scripts
+              sh /scripts/backup-db.sh
+              ls -lh /backups/hourly/
+          env:
+            - name: PGHOST
+              value: gitlab-postgresql.gitlab.svc.cluster.local
+            - name: PGPORT
+              value: "5432"
+            - name: PGUSER
+              value: gitlab
+            - name: PGDATABASE
+              value: gitlabhq_production
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gitlab-postgresql-secret
+                  key: postgresql-password
+            - name: GITLAB_NAMESPACE
+              value: gitlab
+            - name: GITLAB_POD
+              value: gitlab-0
+          volumeMounts:
+            - name: backups
+              mountPath: /backups
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+      volumes:
+        - name: backups
+          persistentVolumeClaim:
+            claimName: gitlab-backup-storage
+        - name: scripts
+          configMap:
+            name: gitlab-backup-scripts
+            defaultMode: 0555
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gitlab-backup-rotation-test
+  namespace: gitlab
+  labels:
+    app: gitlab-backup
+    backup-type: test-rotation
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: gitlab-backup
+        backup-type: test-rotation
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        li-langverse.io/node-pool: engine
+      containers:
+        - name: test
+          image: alpine:3.20
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              export BACKUP_ROOT=/rotation-test
+              export SCRIPT_DIR=/scripts
+              sh /scripts/test-rotation.sh
+          volumeMounts:
+            - name: rotation-test
+              mountPath: /rotation-test
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: rotation-test
+          emptyDir: {}
+        - name: scripts
+          configMap:
+            name: gitlab-backup-scripts
+            defaultMode: 0555

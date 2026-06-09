@@ -1,0 +1,84 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: gitlab-backup-db-hourly
+  namespace: gitlab
+  labels:
+    app: gitlab-backup
+    app.kubernetes.io/name: gitlab-backup-db
+    app.kubernetes.io/part-of: gitlab-ha
+spec:
+  schedule: "0 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app: gitlab-backup
+            backup-type: db-hourly
+        spec:
+          serviceAccountName: gitlab-backup
+          restartPolicy: OnFailure
+          nodeSelector:
+            li-langverse.io/node-pool: engine
+          containers:
+            - name: backup
+              image: postgres:16.4-alpine
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -eu
+                  apk add --no-cache curl
+                  curl -fsSL -o /usr/local/bin/kubectl \
+                    "https://dl.k8s.io/release/v1.32.2/bin/linux/amd64/kubectl"
+                  chmod +x /usr/local/bin/kubectl
+                  export PATH="/usr/local/bin:${PATH}"
+                  export BACKUP_ROOT=/backups
+                  export SCRIPT_DIR=/scripts
+                  sh /scripts/backup-db.sh
+              env:
+                - name: PGHOST
+                  value: gitlab-postgresql.gitlab.svc.cluster.local
+                - name: PGPORT
+                  value: "5432"
+                - name: PGUSER
+                  value: gitlab
+                - name: PGDATABASE
+                  value: gitlabhq_production
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: gitlab-postgresql-secret
+                      key: postgresql-password
+                - name: GITLAB_NAMESPACE
+                  value: gitlab
+                - name: GITLAB_POD
+                  value: gitlab-0
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: "1"
+                  memory: 1Gi
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: gitlab-backup-storage
+            - name: scripts
+              configMap:
+                name: gitlab-backup-scripts
+                defaultMode: 0555
