@@ -48,7 +48,18 @@ spec:
                 elif [[ "$LIS_REPO_URL" == *github.com* && -n "${GH_TOKEN:-}" ]]; then
                   git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/" 2>/dev/null || true
                 fi
-                git clone --depth 1 "$LIS_REPO_URL" "$LIS_DIR"
+                if ! git clone --depth 1 "$LIS_REPO_URL" "$LIS_DIR"; then
+                  if [[ "$LIS_REPO_URL" == *gitlab.lilangverse.xyz* ]]; then
+                    LIS_REPO_URL="https://github.com/li-langverse/lis.git"
+                    if [[ -n "${GH_TOKEN:-}" ]]; then
+                      git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/" 2>/dev/null || true
+                    fi
+                    git clone --depth 1 --branch feat/lip-registry-homelab "$LIS_REPO_URL" "$LIS_DIR" 2>/dev/null || \
+                      git clone --depth 1 "$LIS_REPO_URL" "$LIS_DIR"
+                  else
+                    exit 1
+                  fi
+                fi
               fi
               if [[ -d /opt/lis-patch ]]; then
                 cp -f /opt/lis-patch/registry-handlers.py "$LIS_DIR/routes/registry/handlers.py"
@@ -107,17 +118,10 @@ spec:
             httpGet:
               path: /health
               port: http
-            initialDelaySeconds: 30
-            periodSeconds: 10
+            initialDelaySeconds: 300
+            periodSeconds: 15
             timeoutSeconds: 5
-            failureThreshold: 18
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: http
-            initialDelaySeconds: 60
-            periodSeconds: 20
-            timeoutSeconds: 5
+            failureThreshold: 40
           resources:
             requests:
               cpu: "100m"
