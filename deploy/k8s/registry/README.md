@@ -71,7 +71,8 @@ docker push ghcr.io/li-langverse/lis:registry-min
 ```
 
 - `ghcr-li-langverse` imagePullSecret in namespace `lip-registry`
-- DNS **A** record: `lip.lilangverse.xyz` → ingress/LB IP (e.g. `77.23.124.82`)
+- DNS **A** record: `lip.lilangverse.xyz` → WAN IP (e.g. `77.23.124.82`)
+- **Edge (blackpearl):** `[[site]] host = "lip.lilangverse.xyz"` → `proxy:lip_registry` → NodePort `30422` in `homelab-k3s/k8s/edge/homelab.httpd.toml`; add `lip.lilangverse.xyz` to `HOMELAB_ACME_DOMAINS`, then `edge-lis-apply.sh`
 
 Homelab kubeconfig example:
 
