@@ -79,6 +79,27 @@ def main() -> int:
     status, revoked = _call("DELETE", f"/v1/auth/tokens/{token_id}", token=session)
     assert status == 200, revoked
 
+    status, who = _call("GET", "/v1/auth/whoami", token=session)
+    assert status == 200, who
+    assert who["email"] == "smoke@example.com"
+
+    status, dev = _call("POST", "/v1/auth/device/start")
+    assert status == 200, dev
+    assert dev.get("device_code") and dev.get("user_code")
+
+    status, approved = _call(
+        "POST",
+        "/v1/auth/device/approve",
+        body={"user_code": dev["user_code"]},
+        token=session,
+    )
+    assert status == 200, approved
+
+    status, polled = _call("POST", "/v1/auth/device/poll", body={"device_code": dev["device_code"]})
+    assert status == 200, polled
+    assert polled.get("status") == "complete"
+    assert polled.get("token")
+
     print("auth smoke: ok")
     return 0
 

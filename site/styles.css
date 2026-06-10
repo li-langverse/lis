@@ -1,0 +1,142 @@
+:root {
+  color-scheme: light dark;
+  --bg: #0b0f14;
+  --surface: #121820;
+  --border: #243044;
+  --text: #e8edf4;
+  --muted: #8b9bb4;
+  --accent: #3d8bfd;
+  --accent-dim: #2563eb;
+  --ok: #3ecf8e;
+  --warn: #f5a623;
+  --err: #f87171;
+  --radius: 10px;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f6f8fb;
+    --surface: #fff;
+    --border: #d8dee9;
+    --text: #1a2332;
+    --muted: #5c6b82;
+    --accent: #0969da;
+    --accent-dim: #0550ae;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.55;
+  min-height: 100vh;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.wrap { max-width: 56rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+
+header.site {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand { font-weight: 700; font-size: 1.15rem; letter-spacing: -0.02em; }
+.brand span { color: var(--muted); font-weight: 500; }
+
+nav.top { display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.95rem; }
+
+.hero h1 { font-size: clamp(1.75rem, 4vw, 2.35rem); margin: 0 0 0.75rem; letter-spacing: -0.03em; }
+.hero p.lead { font-size: 1.1rem; color: var(--muted); max-width: 38rem; margin: 0 0 1.5rem; }
+
+.grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  margin: 2rem 0;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+
+.card h2, .card h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+.card p { margin: 0; color: var(--muted); font-size: 0.92rem; }
+
+.btn-row { display: flex; flex-wrap: wrap; gap: 0.65rem; margin-top: 1.25rem; }
+
+button, .btn {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.55rem 1rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+button.primary, .btn.primary {
+  background: var(--accent);
+  border-color: var(--accent-dim);
+  color: #fff;
+}
+button.primary:hover { filter: brightness(1.08); }
+button:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1.25rem; }
+.panel h2 { margin: 0 0 1rem; font-size: 1.1rem; }
+
+label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.35rem; }
+input, select {
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.95rem;
+  margin-bottom: 0.85rem;
+  font-family: inherit;
+}
+
+.msg { margin-top: 0.75rem; padding: 0.65rem 0.85rem; border-radius: 8px; font-size: 0.9rem; }
+.msg.ok { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+.msg.err { background: color-mix(in srgb, var(--err) 18%, transparent); color: var(--err); }
+.msg.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+
+.token-box {
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: 0.85rem;
+  word-break: break-all;
+  padding: 0.75rem;
+  background: var(--bg);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  margin-top: 0.5rem;
+}
+
+.tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.tabs button { flex: 1; min-width: 6rem; }
+.tabs button.active { border-color: var(--accent); color: var(--accent); }
+
+.hidden { display: none !important; }
+
+code { font-family: ui-monospace, monospace; font-size: 0.88em; background: var(--bg); padding: 0.1em 0.35em; border-radius: 4px; }
+
+ul.compact { margin: 0.5rem 0 0; padding-left: 1.2rem; color: var(--muted); font-size: 0.92rem; }
+
+footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.85rem; }

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Account — lip registry</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="site">
+      <div class="brand"><a href="/">lip</a> <span>account</span></div>
+      <nav class="top">
+        <a href="/">Home</a>
+        <button type="button" id="btn-logout" class="hidden">Log out</button>
+      </nav>
+    </header>
+
+    <div id="logged-out">
+      <div class="tabs" role="tablist">
+        <button type="button" data-tab="login" class="active">Log in</button>
+        <button type="button" data-tab="signup">Sign up</button>
+        <button type="button" data-tab="device">Device approval</button>
+      </div>
+
+      <section id="tab-login" class="panel">
+        <h2>Log in</h2>
+        <form id="form-login">
+          <label for="login-email">Email</label>
+          <input id="login-email" type="email" required autocomplete="username">
+          <label for="login-password">Password</label>
+          <input id="login-password" type="password" required autocomplete="current-password">
+          <button type="submit" class="primary">Log in</button>
+        </form>
+        <div id="login-msg" class="msg hidden" role="status"></div>
+      </section>
+
+      <section id="tab-signup" class="panel hidden">
+        <h2>Create publisher account</h2>
+        <form id="form-signup">
+          <label for="signup-email">Email</label>
+          <input id="signup-email" type="email" required autocomplete="email">
+          <label for="signup-password">Password</label>
+          <input id="signup-password" type="password" required minlength="8" autocomplete="new-password">
+          <label for="signup-publisher">Publisher name</label>
+          <input id="signup-publisher" type="text" placeholder="my-org" pattern="[a-z][a-z0-9_-]*">
+          <label for="signup-invite">Signup token (if required)</label>
+          <input id="signup-invite" type="text" placeholder="invite_…" autocomplete="off">
+          <button type="submit" class="primary">Sign up</button>
+        </form>
+        <div id="signup-msg" class="msg hidden" role="status"></div>
+      </section>
+
+      <section id="tab-device" class="panel hidden">
+        <h2>Approve shell / agent login</h2>
+        <p style="color:var(--muted);margin-top:0">After running <code>lip login --device</code>, enter the code shown in your terminal.</p>
+        <form id="form-device-approve">
+          <label for="device-user-code">User code</label>
+          <input id="device-user-code" type="text" placeholder="ABCD-EFGH" autocomplete="off" maxlength="12">
+          <p style="font-size:0.9rem;color:var(--muted)">You must be logged in to approve a device.</p>
+          <button type="submit" class="primary">Approve device</button>
+        </form>
+        <div id="device-approve-msg" class="msg hidden" role="status"></div>
+      </section>
+    </div>
+
+    <div id="logged-in" class="hidden">
+      <section class="panel">
+        <h2>Publisher</h2>
+        <p id="whoami-line" style="margin:0;color:var(--muted)">Loading…</p>
+      </section>
+
+      <section class="panel">
+        <h2>API tokens</h2>
+        <p style="color:var(--muted);margin-top:0;font-size:0.92rem">Use as <code>LIP_REGISTRY_TOKEN</code> for <code>lip publish</code> and MCP.</p>
+        <form id="form-mint-token">
+          <label for="token-name">Token name</label>
+          <input id="token-name" type="text" placeholder="cursor-agent">
+          <label for="token-scope">Scope</label>
+          <select id="token-scope">
+            <option value="publish">publish</option>
+            <option value="yank">yank</option>
+            <option value="publish+yank">publish+yank</option>
+            <option value="audit">audit</option>
+            <option value="publish+audit">publish+audit</option>
+          </select>
+          <button type="submit" class="primary">Create token</button>
+        </form>
+        <div id="mint-msg" class="msg hidden" role="status"></div>
+        <div id="new-token" class="hidden">
+          <p style="margin:0.75rem 0 0;font-size:0.9rem;color:var(--warn)">Copy now — shown once:</p>
+          <div id="new-token-value" class="token-box"></div>
+        </div>
+        <ul id="token-list" style="list-style:none;padding:0;margin:1rem 0 0"></ul>
+      </section>
+
+      <section class="panel">
+        <h2>Signup invites</h2>
+        <form id="form-mint-invite">
+          <label for="invite-email-hint">Email hint (optional)</label>
+          <input id="invite-email-hint" type="email" placeholder="teammate@example.com">
+          <label for="invite-max-uses">Max uses</label>
+          <input id="invite-max-uses" type="number" value="1" min="1" max="100">
+          <button type="submit" class="primary">Mint signup token</button>
+        </form>
+        <div id="invite-msg" class="msg hidden" role="status"></div>
+        <div id="new-invite" class="hidden">
+          <div id="new-invite-value" class="token-box"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Approve device</h2>
+        <form id="form-device-approve-in">
+          <label for="device-user-code-in">User code</label>
+          <input id="device-user-code-in" type="text" placeholder="ABCD-EFGH" autocomplete="off">
+          <button type="submit" class="primary">Approve</button>
+        </form>
+        <div id="device-approve-in-msg" class="msg hidden" role="status"></div>
+      </section>
+    </div>
+
+    <footer>
+      <p>Session stored in browser localStorage. API: <code id="api-base"></code></p>
+    </footer>
+  </div>
+
+  <script src="/app.js"></script>
+  <script>
+    const { api, getSession, setSession, show, fmtCode } = window.LipAccount;
+
+    document.getElementById("api-base").textContent = window.LipAccount.API;
+
+    function selectTab(name) {
+      document.querySelectorAll(".tabs button").forEach((b) => {
+        b.classList.toggle("active", b.dataset.tab === name);
+      });
+      ["login", "signup", "device"].forEach((t) => {
+        document.getElementById("tab-" + t).classList.toggle("hidden", t !== name);
+      });
+    }
+
+    document.querySelectorAll(".tabs button").forEach((btn) => {
+      btn.addEventListener("click", () => selectTab(btn.dataset.tab));
+    });
+
+    function setLoggedIn(on) {
+      document.getElementById("logged-out").classList.toggle("hidden", on);
+      document.getElementById("logged-in").classList.toggle("hidden", !on);
+      document.getElementById("btn-logout").classList.toggle("hidden", !on);
+    }
+
+    document.getElementById("btn-logout").addEventListener("click", () => {
+      setSession(null);
+      setLoggedIn(false);
+      location.hash = "";
+    });
+
+    async function refreshWhoami() {
+      try {
+        const w = await api("GET", "/auth/whoami");
+        document.getElementById("whoami-line").textContent =
+          w.email + " · publisher " + (w.publisher_name || w.publisher_id);
+        setLoggedIn(true);
+        await loadTokens();
+      } catch (_) {
+        setSession(null);
+        setLoggedIn(false);
+      }
+    }
+
+    async function loadTokens() {
+      const ul = document.getElementById("token-list");
+      ul.innerHTML = "";
+      try {
+        const data = await api("GET", "/auth/tokens");
+        if (!data.tokens || !data.tokens.length) {
+          ul.innerHTML = "<li style='color:var(--muted)'>No active tokens</li>";
+          return;
+        }
+        data.tokens.forEach((t) => {
+          const li = document.createElement("li");
+          li.className = "card";
+          li.style.marginBottom = "0.5rem";
+          li.innerHTML =
+            "<strong>" + (t.name || "unnamed") + "</strong> · " + t.scope +
+            "<br><small style='color:var(--muted)'>" + t.id + "</small>" +
+            ' <button type="button" data-revoke="' + t.id + '" style="float:right">Revoke</button>';
+          ul.appendChild(li);
+        });
+        ul.querySelectorAll("[data-revoke]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            if (!confirm("Revoke this token?")) return;
+            await api("DELETE", "/auth/tokens/" + btn.dataset.revoke);
+            await loadTokens();
+          });
+        });
+      } catch (e) {
+        ul.innerHTML = "<li class='msg err'>" + (e.data?.message || e.message) + "</li>";
+      }
+    }
+
+    document.getElementById("form-login").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const msg = document.getElementById("login-msg");
+      try {
+        const data = await api("POST", "/auth/login", {
+          email: document.getElementById("login-email").value.trim(),
+          password: document.getElementById("login-password").value,
+        });
+        setSession(data.access_token);
+        show(msg, "Logged in.", "ok");
+        await refreshWhoami();
+      } catch (e) {
+        show(msg, e.data?.message || e.message, "err");
+      }
+    });
+
+    document.getElementById("form-signup").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const msg = document.getElementById("signup-msg");
+      const body = {
+        email: document.getElementById("signup-email").value.trim(),
+        password: document.getElementById("signup-password").value,
+      };
+      const pub = document.getElementById("signup-publisher").value.trim();
+      const invite = document.getElementById("signup-invite").value.trim();
+      if (pub) body.publisher_name = pub;
+      if (invite) body.signup_token = invite;
+      try {
+        const data = await api("POST", "/auth/signup", body);
+        setSession(data.access_token);
+        show(msg, "Account created.", "ok");
+        await refreshWhoami();
+      } catch (e) {
+        show(msg, e.data?.message || e.message, "err");
+      }
+    });
+
+    async function approveDevice(code, msgEl) {
+      const normalized = code.replace(/[\s-]/g, "").toUpperCase();
+      if (normalized.length < 8) {
+        show(msgEl, "Enter the 8-character user code", "err");
+        return;
+      }
+      try {
+        await api("POST", "/auth/device/approve", { user_code: normalized });
+        show(msgEl, "Device approved. The shell can continue polling.", "ok");
+      } catch (e) {
+        show(msgEl, e.data?.message || e.message, "err");
+      }
+    }
+
+    document.getElementById("form-device-approve").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      await approveDevice(
+        document.getElementById("device-user-code").value,
+        document.getElementById("device-approve-msg")
+      );
+    });
+
+    document.getElementById("form-device-approve-in").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      await approveDevice(
+        document.getElementById("device-user-code-in").value,
+        document.getElementById("device-approve-in-msg")
+      );
+    });
+
+    document.getElementById("form-mint-token").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const msg = document.getElementById("mint-msg");
+      const box = document.getElementById("new-token");
+      try {
+        const data = await api("POST", "/auth/tokens", {
+          name: document.getElementById("token-name").value.trim() || "web",
+          scope: document.getElementById("token-scope").value,
+        });
+        document.getElementById("new-token-value").textContent = data.token;
+        box.classList.remove("hidden");
+        show(msg, "Token created.", "ok");
+        await loadTokens();
+      } catch (e) {
+        show(msg, e.data?.message || e.message, "err");
+      }
+    });
+
+    document.getElementById("form-mint-invite").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const msg = document.getElementById("invite-msg");
+      try {
+        const data = await api("POST", "/auth/signup-tokens", {
+          email_hint: document.getElementById("invite-email-hint").value.trim() || null,
+          max_uses: parseInt(document.getElementById("invite-max-uses").value, 10) || 1,
+        });
+        document.getElementById("new-invite-value").textContent = data.signup_token;
+        document.getElementById("new-invite").classList.remove("hidden");
+        show(msg, "Invite created — share once.", "ok");
+      } catch (e) {
+        show(msg, e.data?.message || e.message, "err");
+      }
+    });
+
+    function parseHash() {
+      const h = location.hash.replace(/^#/, "");
+      if (h.startsWith("device=")) {
+        const code = decodeURIComponent(h.slice(7)).replace(/[\s-]/g, "").toUpperCase();
+        selectTab("device");
+        const el = document.getElementById("device-user-code");
+        const elIn = document.getElementById("device-user-code-in");
+        if (el) el.value = fmtCode(code);
+        if (elIn) elIn.value = fmtCode(code);
+      } else if (h === "signup") selectTab("signup");
+      else if (h === "login" || h === "device") selectTab(h);
+    }
+
+    window.addEventListener("hashchange", parseHash);
+    parseHash();
+    refreshWhoami();
+  </script>
+</body>
+</html>

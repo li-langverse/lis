@@ -13,7 +13,7 @@ from typing import Any
 
 from .crypto_util import generate_api_token, hash_api_token, hash_password, verify_password
 from .errors import AuthError
-from .jwt_util import encode_jwt
+from .jwt_util import decode_jwt, encode_jwt
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 VALID_SCOPES = frozenset({"publish", "yank", "publish+yank", "audit", "publish+audit"})
@@ -61,6 +61,19 @@ class SignupTokenRecord:
 
 
 @dataclass
+class DeviceCodeRecord:
+    id: str
+    device_code: str
+    user_code: str
+    status: str  # pending | approved | expired
+    user_id: str | None
+    session_token: str | None
+    api_token: str | None
+    expires_at: str
+    created_at: str
+
+
+@dataclass
 class MockAuthStore:
     data_dir: Path
     users: dict[str, UserRecord] = field(default_factory=dict)
@@ -70,6 +83,8 @@ class MockAuthStore:
     token_hash_index: dict[str, str] = field(default_factory=dict)
     signup_tokens: dict[str, SignupTokenRecord] = field(default_factory=dict)
     signup_hash_index: dict[str, str] = field(default_factory=dict)
+    device_codes: dict[str, DeviceCodeRecord] = field(default_factory=dict)
+    device_by_user_code: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def open(cls, data_dir: str | Path | None = None) -> MockAuthStore:
@@ -106,6 +121,11 @@ class MockAuthStore:
             self.signup_tokens[st.id] = st
             if st.uses < st.max_uses:
                 self.signup_hash_index[st.token_hash] = st.id
+        for row in raw.get("device_codes", []):
+            dc = DeviceCodeRecord(**row)
+            self.device_codes[dc.id] = dc
+            if dc.status == "pending":
+                self.device_by_user_code[dc.user_code.upper()] = dc.id
 
     def _save(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -114,6 +134,7 @@ class MockAuthStore:
             "publishers": [asdict(p) for p in self.publishers.values()],
             "api_tokens": [asdict(t) for t in self.api_tokens.values()],
             "signup_tokens": [asdict(t) for t in self.signup_tokens.values()],
+            "device_codes": [asdict(d) for d in self.device_codes.values()],
         }
         self._db_path().write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
@@ -353,6 +374,108 @@ class MockAuthStore:
         if rec.uses >= rec.max_uses:
             self.signup_hash_index.pop(token_hash, None)
         self._save()
+
+    def start_device_flow(self) -> dict[str, Any]:
+        import secrets
+
+        base = os.environ.get("LIP_REGISTRY_PUBLIC_URL", "https://lip.lilangverse.xyz/v1").rstrip("/")
+        if base.endswith("/v1"):
+            base = base[:-3]
+        device_code = secrets.token_urlsafe(32)
+        user_code = "".join(secrets.choice("BCDFGHJKLMNPQRSTVWXZ23456789") for _ in range(8))
+        now = datetime.now(timezone.utc)
+        expires = (now + timedelta(minutes=15)).isoformat()
+        rec_id = str(uuid.uuid4())
+        rec = DeviceCodeRecord(
+            id=rec_id,
+            device_code=device_code,
+            user_code=user_code,
+            status="pending",
+            user_id=None,
+            session_token=None,
+            api_token=None,
+            expires_at=expires,
+            created_at=now.isoformat(),
+        )
+        self.device_codes[rec_id] = rec
+        self.device_by_user_code[user_code] = rec_id
+        self._save()
+        return {
+            "device_code": device_code,
+            "user_code": user_code,
+            "verification_uri": f"{base}/account#device={user_code}",
+            "expires_in": 900,
+            "interval": 5,
+        }
+
+    def poll_device_flow(self, device_code: str) -> dict[str, Any]:
+        rec = next((d for d in self.device_codes.values() if d.device_code == device_code), None)
+        if not rec:
+            raise AuthError("not_found", "unknown device_code", status=404)
+        exp = datetime.fromisoformat(rec.expires_at)
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if exp < datetime.now(timezone.utc) or rec.status == "expired":
+            rec.status = "expired"
+            self._save()
+            raise AuthError("expired_token", "device code expired", status=400)
+        if rec.status == "pending":
+            return {"status": "pending"}
+        if rec.api_token:
+            return {
+                "status": "complete",
+                "token": rec.api_token,
+                "token_type": "Bearer",
+                "scope": "publish",
+            }
+        if rec.session_token:
+            return {
+                "status": "complete",
+                "access_token": rec.session_token,
+                "token_type": "Bearer",
+            }
+        return {"status": "pending"}
+
+    def approve_device_flow(self, *, user_id: str, user_code: str, mint_api: bool = True) -> dict[str, Any]:
+        rec_id = self.device_by_user_code.get(user_code.strip().upper())
+        if not rec_id:
+            raise AuthError("not_found", "unknown user_code", status=404)
+        rec = self.device_codes.get(rec_id)
+        if not rec or rec.status != "pending":
+            raise AuthError("conflict", "device code not pending", status=409)
+        user = self.users.get(user_id)
+        if not user:
+            raise AuthError("unauthorized", "unknown user", status=401)
+        session = encode_jwt(
+            {"sub": user.id, "role": "authenticated", "publisher_id": user.publisher_id, "typ": "session"},
+            ttl_seconds=3600,
+        )
+        rec.user_id = user_id
+        rec.session_token = session
+        if mint_api:
+            tok = self.create_api_token(user_id=user_id, name="device-login", scope="publish")
+            rec.api_token = tok["token"]
+        rec.status = "approved"
+        self.device_by_user_code.pop(rec.user_code, None)
+        self._save()
+        return {"status": "approved", "user_code": rec.user_code}
+
+    def whoami(self, session_token: str | None) -> dict[str, Any]:
+        if not session_token:
+            raise AuthError("unauthorized", "session bearer required", status=401)
+        claims = decode_jwt(session_token)
+        if not claims or claims.get("typ") != "session":
+            raise AuthError("unauthorized", "invalid session", status=401)
+        user = self.users.get(str(claims.get("sub")))
+        if not user:
+            raise AuthError("unauthorized", "unknown user", status=401)
+        pub = self.publishers.get(user.publisher_id)
+        return {
+            "user_id": user.id,
+            "email": user.email,
+            "publisher_id": user.publisher_id,
+            "publisher_name": pub.name if pub else None,
+        }
 
     def resolve_bearer_token(self, token: str) -> dict[str, Any] | None:
         """Return publisher context for registry publish if token is valid."""

@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: lip-static
+  namespace: lip-registry
+  labels:
+    app: lip-static
+    app.kubernetes.io/name: lip-static
+    app.kubernetes.io/part-of: lip-platform
+spec:
+  type: ClusterIP
+  selector:
+    app: lip-static
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP

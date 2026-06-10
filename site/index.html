@@ -3,27 +3,77 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>lis — Li server & registry</title>
-  <link rel="canonical" href="https://li-langverse.github.io/lis/">
-  <style>
-    :root { color-scheme: light dark; }
-    body { font-family: system-ui, sans-serif; max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
-    a { color: #0969da; }
-    nav { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; margin: 1rem 0; }
-  </style>
+  <title>lip registry — agent-first package publishing</title>
+  <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <h1>lis — Li server & registry</h1>
-  <p>HTTP server, registry, and realtime routes for the Li org.</p>
-  <nav aria-label="Handbook">
-    <a href="https://github.com/li-langverse/lis/blob/main/docs/handbook.md">In-repo handbook</a>
-    <a href="https://github.com/li-langverse/lic/blob/main/docs/ecosystem/plan-cross-links.md">Plan cross-links</a>
-    <a href="https://github.com/li-langverse/lic/blob/main/docs/superpowers/plans/2026-05-14-li-master-plan.md">Master plan</a>
-    <a href="https://github.com/li-langverse/lic/blob/main/docs/verification/provability-gaps.md">Provability gaps (G-*)</a>
-    <a href="https://li-langverse.github.io/benchmarks/">Benchmarks dashboard</a>
-    <a href="https://li-langverse.github.io/li-language/">Language handbook</a>
-    <a href="https://li-langverse.github.io/roadmap/development-overview/">Development overview</a>
-  </nav>
-  <p><small>Benchmark rows are measurements, not proof certificates. Mark <strong>G-*</strong> Partial/Done only with cited evidence.</small></p>
+  <div class="wrap">
+    <header class="site">
+      <div class="brand">lip <span>registry</span></div>
+      <nav class="top" aria-label="Site">
+        <a href="/account">Account</a>
+        <a href="/v1/agent/capabilities">API capabilities</a>
+        <a href="/v1/openapi.yaml">OpenAPI</a>
+        <a href="https://gitlab.lilangverse.xyz/li-langverse/lip">lip docs</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <h1>Publish Li packages with tokens, not browser hacks</h1>
+      <p class="lead">
+        The lip registry at <code>lip.lilangverse.xyz</code> is built for agents and shells first:
+        REST <code>/v1/*</code>, device login for CI, and an MCP server for Cursor.
+      </p>
+      <div class="btn-row">
+        <a class="btn primary" href="/account">Sign up / log in</a>
+        <a class="btn" href="/account#device">Approve device login</a>
+      </div>
+    </section>
+
+    <div class="grid">
+      <article class="card">
+        <h2>Cursor agents</h2>
+        <p>Point MCP <code>lip-registry</code> at this host. Call <code>registry_capabilities</code>, then validate and publish.</p>
+        <ul class="compact">
+          <li><code>LIP_REGISTRY_URL</code></li>
+          <li><code>LIP_REGISTRY_TOKEN</code></li>
+        </ul>
+      </article>
+      <article class="card">
+        <h2>Shell / lip CLI</h2>
+        <p>Run <code>lip login --device</code> once, or paste an API token from the account page.</p>
+        <ul class="compact">
+          <li>Device code → approve in browser</li>
+          <li>Token saved to <code>~/.config/lip/credentials.toml</code></li>
+        </ul>
+      </article>
+      <article class="card">
+        <h2>Humans</h2>
+        <p>Create a publisher, mint scoped API tokens, and invite signups with signup tokens.</p>
+        <ul class="compact">
+          <li>Email + password (MVP)</li>
+          <li>lidb persistence coming next</li>
+        </ul>
+      </article>
+    </div>
+
+    <section class="panel">
+      <h2>Quick start</h2>
+      <pre style="overflow:auto;font-size:0.85rem;background:var(--bg);padding:1rem;border-radius:8px;border:1px solid var(--border);"><code># 1. Device login (shell)
+export LIP_REGISTRY_URL=https://lip.lilangverse.xyz/v1
+lip/scripts/lip-login.sh --device
+
+# 2. Or sign up in the browser
+open https://lip.lilangverse.xyz/account
+
+# 3. Publish (after token is set)
+export LIP_REGISTRY_TOKEN=lip_…
+lip publish --json</code></pre>
+    </section>
+
+    <footer>
+      <p>Li org registry — homelab on engine. Public read <code>GET /v1/packages</code>; writes require bearer token.</p>
+    </footer>
+  </div>
 </body>
 </html>

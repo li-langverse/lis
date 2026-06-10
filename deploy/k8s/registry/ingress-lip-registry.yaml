@@ -46,9 +46,9 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: lip-auth-api
+                name: lip-static
                 port:
-                  number: 54322
+                  number: 80
           - path: /
             pathType: Prefix
             backend:

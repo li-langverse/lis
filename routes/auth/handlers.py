@@ -147,6 +147,49 @@ def handle_auth_request(
         except AuthError as exc:
             return _error_response(exc)
 
+    if method == "POST" and route == "/v1/auth/device/start":
+        try:
+            return _json_response(200, store.start_device_flow())
+        except RuntimeError as exc:
+            return _json_response(500, {"error": "misconfigured", "message": str(exc)})
+
+    if method == "POST" and route == "/v1/auth/device/poll":
+        try:
+            payload = json.loads(body or b"{}")
+        except json.JSONDecodeError:
+            return _json_response(400, {"error": "bad_request", "message": "invalid JSON body"})
+        code = payload.get("device_code", "")
+        if not code:
+            return _json_response(400, {"error": "bad_request", "message": "device_code required"})
+        try:
+            return _json_response(200, store.poll_device_flow(code))
+        except AuthError as exc:
+            return _error_response(exc)
+
+    if method == "POST" and route == "/v1/auth/device/approve":
+        session = _parse_bearer(headers)
+        user_id = _session_user_id(session)
+        if not user_id:
+            return _json_response(401, {"error": "unauthorized", "message": "login required to approve device"})
+        try:
+            payload = json.loads(body or b"{}")
+        except json.JSONDecodeError:
+            return _json_response(400, {"error": "bad_request", "message": "invalid JSON body"})
+        user_code = payload.get("user_code", "")
+        if not user_code:
+            return _json_response(400, {"error": "bad_request", "message": "user_code required"})
+        try:
+            return _json_response(200, store.approve_device_flow(user_id=user_id, user_code=user_code))
+        except AuthError as exc:
+            return _error_response(exc)
+
+    if method == "GET" and route == "/v1/auth/whoami":
+        session = _parse_bearer(headers)
+        try:
+            return _json_response(200, store.whoami(session))
+        except AuthError as exc:
+            return _error_response(exc)
+
     if method == "POST" and route == "/v1/auth/signup-tokens":
         session = _parse_bearer(headers)
         user_id = _session_user_id(session)

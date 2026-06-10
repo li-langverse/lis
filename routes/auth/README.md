@@ -9,6 +9,11 @@ Email+password signup/login and API token management. Wired into the registry li
 | `POST` | `/v1/auth/tokens` | Session bearer | Create `lip_…` API token |
 | `GET` | `/v1/auth/tokens` | Session bearer | List tokens |
 | `DELETE` | `/v1/auth/tokens/{id}` | Session bearer | Revoke token |
+| `GET` | `/v1/auth/whoami` | Session bearer | Current user + publisher |
+| `POST` | `/v1/auth/device/start` | — | Device login: `device_code`, `user_code`, `verification_uri` |
+| `POST` | `/v1/auth/device/poll` | — | Poll `device_code` until `token` returned |
+| `POST` | `/v1/auth/device/approve` | Session bearer | Approve shell login by `user_code` |
+| `POST` | `/v1/auth/signup-tokens` | Session bearer | Mint gated signup invite |
 
 Phase 1 TOTP/WebAuthn spec: [docs/auth-2fa-webauthn.md](../../docs/auth-2fa-webauthn.md).
 

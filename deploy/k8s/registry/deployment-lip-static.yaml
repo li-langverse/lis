@@ -1,0 +1,68 @@
+# Static landing + account UI for lip.lilangverse.xyz
+# Apply site files: kubectl create configmap lip-static-site -n lip-registry \
+#   --from-file=index.html=site/index.html \
+#   --from-file=account.html=site/account.html \
+#   --from-file=app.js=site/app.js \
+#   --from-file=styles.css=site/styles.css \
+#   --dry-run=client -o yaml | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lip-static
+  namespace: lip-registry
+  labels:
+    app: lip-static
+    app.kubernetes.io/name: lip-static
+    app.kubernetes.io/component: static-site
+    app.kubernetes.io/part-of: lip-platform
+    li-langverse.io/cluster: engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lip-static
+  template:
+    metadata:
+      labels:
+        app: lip-static
+        app.kubernetes.io/name: lip-static
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+            - name: site
+              mountPath: /usr/share/nginx/html
+      volumes:
+        - name: nginx-conf
+          configMap:
+            name: lip-static-nginx
+        - name: site
+          configMap:
+            name: lip-static-site

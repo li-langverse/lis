@@ -172,8 +172,10 @@ Public **GET `/v1`** must return JSON (200 or 401), **not** an HTML `/login` red
 |------|---------|-------|
 | `/v1` | `lip-registry-api:54321` | Public GET — **no** auth redirect |
 | `/health` | `lip-registry-api:54321` | Health probe |
-| `/account` | `lip-auth-api:54322` | Future auth UI |
-| `/` | `lip-static:80` | Future landing/docs |
+| `/account` | `lip-static:80` | Account UI (calls `/v1/auth/*` on registry API) |
+| `/` | `lip-static:80` | Landing page |
+
+Apply static site: `deploy/k8s/registry/scripts/apply-lip-static-site.sh`
 
 Router: forward WAN **80/443** to the **ingress controller node**, not port **54321**.
 

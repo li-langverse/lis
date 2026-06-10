@@ -13,6 +13,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from routes.auth.verify import resolve_registry_bearer
+
+from .agent import validate_publish_payload
 from .errors import RegistryError
 
 
@@ -121,9 +124,45 @@ class MockRegistryStore:
             )
         return pv.to_dict()
 
-    def publish(self, name: str, body: dict[str, Any], *, token: str | None) -> dict[str, Any]:
+    def _require_publish_token(self, token: str | None) -> None:
         if not token:
-            raise RegistryError("unauthorized", "missing bearer token", status=401)
+            raise RegistryError(
+                "unauthorized",
+                "missing bearer token",
+                status=401,
+                remediation="Set LIP_REGISTRY_TOKEN or run lip login --device",
+            )
+        ctx = resolve_registry_bearer(token)
+        if ctx is None:
+            raise RegistryError(
+                "unauthorized",
+                "invalid or expired bearer token",
+                status=401,
+                remediation="Set LIP_REGISTRY_TOKEN or run lip login --device",
+            )
+        scope = str(ctx.get("scope", ""))
+        if scope not in ("publish", "publish+yank", "publish+audit"):
+            raise RegistryError(
+                "forbidden",
+                "token scope does not allow publish",
+                status=403,
+                remediation="Mint a token with publish scope via POST /v1/auth/tokens",
+            )
+
+    def validate_publish(self, name: str, body: dict[str, Any]) -> dict[str, Any]:
+        return validate_publish_payload(name, body, check_blob=True)
+
+    def publish(self, name: str, body: dict[str, Any], *, token: str | None) -> dict[str, Any]:
+        self._require_publish_token(token)
+        dry = validate_publish_payload(name, body, check_blob=True)
+        if not dry["ok"]:
+            first = dry["errors"][0]
+            raise RegistryError(
+                first["error"],
+                first["message"],
+                status=403 if first["error"] == "forbidden" else 412 if first["error"] == "precondition_failed" else 400,
+                remediation=first.get("remediation"),
+            )
         version = body.get("version")
         if not version:
             raise RegistryError("bad_request", "version is required")
@@ -178,6 +217,11 @@ class MockRegistryStore:
     def yank(self, name: str, version: str, reason: str, *, token: str | None) -> dict[str, Any]:
         if not token:
             raise RegistryError("unauthorized", "missing bearer token", status=401)
+        ctx = resolve_registry_bearer(token)
+        if ctx is None:
+            raise RegistryError("unauthorized", "invalid bearer token", status=401)
+        if str(ctx.get("scope", "")) not in ("yank", "publish+yank"):
+            raise RegistryError("forbidden", "token scope does not allow yank", status=403)
         if not reason:
             raise RegistryError("bad_request", "reason is required")
         key = (name, version)
