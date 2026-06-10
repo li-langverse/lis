@@ -1,0 +1,36 @@
+# lip.lilangverse.xyz — homelab cleartext :80 when WAN TLS terminates upstream.
+# li-httpd requires a TLS profile on public binds; self_signed.dev enables :80 + :443.
+
+[server]
+listen = ":443"
+listen_http = ":80"
+host = "lip.lilangverse.xyz"
+document_root = "/var/lib/li-httpd/empty"
+tls = "self_signed"
+
+[tls]
+mode = "self_signed"
+self_signed = { dev = true, days = 90, key_type = "ed25519" }
+
+[limits]
+max_body = "32m"
+max_header = "32k"
+proxy_max_response_body = "64m"
+rate_limit_rps = 1000
+rate_limit_burst = 2000
+
+[upstreams.registry]
+peers = ["http://127.0.0.1:30422"]
+
+[routes]
+"GET /health" = "proxy:registry"
+"HEAD /health" = "proxy:registry"
+"GET /v1/*" = "proxy:registry"
+"HEAD /v1/*" = "proxy:registry"
+"POST /v1/*" = "proxy:registry"
+"PUT /v1/*" = "proxy:registry"
+"PATCH /v1/*" = "proxy:registry"
+"DELETE /v1/*" = "proxy:registry"
+"OPTIONS /v1/*" = "proxy:registry"
+"GET /account/*" = "proxy:registry"
+"POST /account/*" = "proxy:registry"

@@ -1,0 +1,62 @@
+# lip.lilangverse.xyz — public registry API without auth redirect on GET /v1.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lip-registry
+  namespace: lip-registry
+  labels:
+    app.kubernetes.io/name: lip-registry
+    app.kubernetes.io/part-of: lip-platform
+    li-langverse.io/cluster: engine
+  annotations:
+    # Do not attach global OAuth/login middleware to the whole host.
+    nginx.ingress.kubernetes.io/auth-url: ""
+    nginx.ingress.kubernetes.io/auth-signin: ""
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "32m"
+    # Explicit: /v1 public GET must reach registry handler (no redirect to /account/login).
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      if ($uri ~* "^/v1/") {
+        set $auth_redirect off;
+      }
+      if ($uri = "/health") {
+        set $auth_redirect off;
+      }
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: lip.lilangverse.xyz
+      http:
+        paths:
+          - path: /v1
+            pathType: Prefix
+            backend:
+              service:
+                name: lip-registry-api
+                port:
+                  number: 54321
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: lip-registry-api
+                port:
+                  number: 54321
+          - path: /account
+            pathType: Prefix
+            backend:
+              service:
+                name: lip-auth-api
+                port:
+                  number: 54322
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: lip-static
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - lip.lilangverse.xyz
+      secretName: lip-lilangverse-tls

@@ -1,0 +1,47 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lip-ssd-mount-v2
+  namespace: lip-registry
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      hostPID: true
+      hostNetwork: true
+      containers:
+        - name: mount
+          image: ubuntu:24.04
+          securityContext:
+            privileged: true
+          command:
+            - /bin/bash
+            - -lc
+            - |
+              set -euo pipefail
+              apt-get update -qq && apt-get install -y -qq util-linux e2fsprogs
+              MOUNT=/var/lib/lip-registry
+              nsenter -t 1 -m -u -i -n -- mkdir -p "$MOUNT/blobs"
+              src="$(nsenter -t 1 -m -u -i -n -- findmnt -n -o SOURCE --target "$MOUNT" 2>/dev/null || true)"
+              if [[ "$src" == /dev/sdb1 ]]; then
+                echo "already on sdb1"
+              else
+                PART=/dev/sdb1
+                if nsenter -t 1 -m -u -i -n -- test -b "$PART"; then
+                  if ! nsenter -t 1 -m -u -i -n -- blkid "$PART" >/dev/null 2>&1; then
+                    nsenter -t 1 -m -u -i -n -- mkfs.ext4 -F -L lip-registry "$PART"
+                  fi
+                  nsenter -t 1 -m -u -i -n -- mountpoint -q "$MOUNT" && nsenter -t 1 -m -u -i -n -- umount "$MOUNT" || true
+                  nsenter -t 1 -m -u -i -n -- mount "$PART" "$MOUNT"
+                  UUID="$(nsenter -t 1 -m -u -i -n -- blkid -s UUID -o value "$PART")"
+                  grep -q "$UUID" /etc/fstab 2>/dev/null || echo "UUID=$UUID $MOUNT ext4 defaults,nofail 0 2" | nsenter -t 1 -m -u -i -n -- tee -a /etc/fstab
+                fi
+              fi
+              nsenter -t 1 -m -u -i -n -- mkdir -p "$MOUNT/blobs"
+              nsenter -t 1 -m -u -i -n -- chown -R 65534:65534 "$MOUNT" || true
+              nsenter -t 1 -m -u -i -n -- df -h "$MOUNT"
+              nsenter -t 1 -m -u -i -n -- lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINT

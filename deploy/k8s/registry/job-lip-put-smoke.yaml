@@ -1,0 +1,54 @@
+﻿apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lip-put-smoke
+  namespace: lip-registry
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: smoke
+          image: curlimages/curl:8.14.1
+          command:
+            - /bin/sh
+            - -lc
+            - |
+              set -eu
+              echo "lip-put-smoke: settle..."
+              sleep 8
+              payload="li-put-smoke-$(date +%s)-$$"
+              digest="sha256:$(printf '%s' "$payload" | sha256sum | awk '{print $1}')"
+              echo "PUT via liserver :80 digest=$digest"
+              curl -fsS -m 30 -X PUT \
+                -H "Host: lip.lilangverse.xyz" \
+                -H "Authorization: Bearer ${TOKEN}" \
+                -H "Content-Type: application/vnd.li.package+tar" \
+                -H "Connection: close" \
+                --data-binary "$payload" \
+                "http://127.0.0.1:80/v1/blobs/${digest}"
+              echo
+              sleep 5
+              echo "GET verify via liserver :80"
+              got=""
+              for attempt in 1 2 3; do
+                if got="$(curl -fsS -m 30 -H "Host: lip.lilangverse.xyz" -H "Connection: close" \
+                  "http://127.0.0.1:80/v1/blobs/${digest}" 2>/dev/null)"; then
+                  break
+                fi
+                sleep 3
+              done
+              test "$got" = "$payload"
+              echo "lip-put-smoke: PASS (liserver :80 PUT+GET)"
+          env:
+            - name: TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: LI_REGISTRY_DEV_TOKEN

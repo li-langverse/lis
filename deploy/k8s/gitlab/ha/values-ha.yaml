@@ -1,0 +1,117 @@
+# GitLab CE Helm — HA Phase 1: external PostgreSQL/Redis + 2 webservice replicas.
+# Requires shared services in namespace gitlab (external-postgresql.yaml, external-redis.yaml).
+# Edge: li-httpd on blackpearl → NodePort 30481 (same as Omnibus).
+# Chart: https://docs.gitlab.com/charts/
+
+global:
+  edition: ce
+  appConfig:
+    object_store:
+      enabled: false
+    artifacts:
+      enabled: false
+    lfs:
+      enabled: false
+    uploads:
+      enabled: false
+    packages:
+      enabled: false
+  hosts:
+    domain: lilangverse.xyz
+    https: true
+    gitlab:
+      name: gitlab.lilangverse.xyz
+  ingress:
+    enabled: false
+  psql:
+    host: gitlab-postgresql.gitlab.svc.cluster.local
+    port: 5432
+    database: gitlabhq_production
+    username: gitlab
+    password:
+      secret: gitlab-postgresql-secret
+      key: postgresql-password
+  redis:
+    host: gitlab-redis.gitlab.svc.cluster.local
+    port: 6379
+  nodeSelector:
+    li-langverse.io/node-pool: engine
+  time_zone: UTC
+
+nginx-ingress:
+  enabled: false
+
+installCertmanager: false
+certmanager-issuer:
+  email: admin@lilangverse.xyz
+
+prometheus:
+  install: false
+
+grafana:
+  enabled: false
+
+gitlab-runner:
+  install: false
+
+postgresql:
+  install: false
+
+redis:
+  install: false
+
+registry:
+  enabled: false
+
+gitlab:
+  webservice:
+    minReplicas: 2
+    maxReplicas: 2
+    podDisruptionBudget:
+      minAvailable: 1
+    service:
+      type: NodePort
+      externalPort: 80
+      nodePort: 30481
+    resources:
+      requests:
+        cpu: 500m
+        memory: 8Gi
+      limits:
+        cpu: "4"
+        memory: 12Gi
+  sidekiq:
+    minReplicas: 1
+    maxReplicas: 1
+    resources:
+      requests:
+        cpu: 200m
+        memory: 1Gi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+  gitaly:
+    persistence:
+      enabled: true
+      size: 50Gi
+      storageClass: local-path
+    resources:
+      requests:
+        cpu: 200m
+        memory: 1Gi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+  gitlab-shell:
+    service:
+      type: NodePort
+      nodePort: 30222
+  toolbox:
+    backups:
+      cron:
+        enabled: false
+  kas:
+    enabled: false
+
+pages:
+  enabled: false

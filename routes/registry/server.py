@@ -14,6 +14,7 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from routes.registry.handlers import handle_request  # noqa: E402
+from routes.registry.audit_log import log_access  # noqa: E402
 
 
 class RegistryHandler(BaseHTTPRequestHandler):
@@ -32,11 +33,18 @@ class RegistryHandler(BaseHTTPRequestHandler):
             headers=hdrs,
             body=body,
         )
+        log_access(
+            method=self.command,
+            path=self.path,
+            status=status,
+            headers=hdrs,
+        )
         self.send_response(status)
         for key, value in resp_headers.items():
             self.send_header(key, value)
         self.end_headers()
-        self.wfile.write(payload)
+        if self.command != "HEAD":
+            self.wfile.write(payload)
 
     def do_GET(self) -> None:
         self._dispatch()
@@ -44,7 +52,13 @@ class RegistryHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         self._dispatch()
 
+    def do_PUT(self) -> None:
+        self._dispatch()
+
     def do_HEAD(self) -> None:
+        self._dispatch()
+
+    def do_DELETE(self) -> None:
         self._dispatch()
 
 

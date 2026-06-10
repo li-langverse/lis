@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: lip-bin-staging
+  namespace: lip-registry
+spec:
+  restartPolicy: Never
+  nodeSelector:
+    kubernetes.io/hostname: engine
+  containers:
+    - name: staging
+      image: ubuntu:24.04
+      command: ["sleep", "3600"]
+      volumeMounts:
+        - name: bin
+          mountPath: /host-bin
+          readOnly: true
+  volumes:
+    - name: bin
+      hostPath:
+        path: /var/lib/lip-registry/build
+        type: Directory

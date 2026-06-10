@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lip-registry
+  namespace: lip-registry
+  labels:
+    app: lip-registry
+    app.kubernetes.io/name: lip-registry
+    app.kubernetes.io/component: registry-api
+    app.kubernetes.io/part-of: lip-platform
+    li-langverse.io/cluster: engine
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: lip-registry
+  template:
+    metadata:
+      labels:
+        app: lip-registry
+        app.kubernetes.io/name: lip-registry
+        app.kubernetes.io/component: registry-api
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      imagePullSecrets:
+        - name: ghcr-li-langverse
+      containers:
+        - name: registry
+          image: ghcr.io/li-langverse/lis:registry-min
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+            - -lc
+            - /opt/lis/bin/lis db start --foreground
+          ports:
+            - name: http
+              containerPort: 54321
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: lip-registry-config
+          env:
+            - name: LI_REGISTRY_DEV_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: LI_REGISTRY_DEV_TOKEN
+            - name: LI_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: LI_JWT_SECRET
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: lip-registry-data

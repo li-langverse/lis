@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lip-rotate-liserver-bin
+  namespace: lip-registry
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      containers:
+        - name: rotate
+          image: ubuntu:24.04
+          command:
+            - /bin/bash
+            - -lc
+            - |
+              set -euo pipefail
+              apt-get update -qq && apt-get install -y -qq curl ca-certificates
+              curl -fsSL -o /usr/local/bin/kubectl \
+                "https://dl.k8s.io/release/v1.32.2/bin/linux/amd64/kubectl"
+              chmod +x /usr/local/bin/kubectl
+              test -x /host-bin/li-httpd
+              kubectl create secret generic lip-liserver-bin \
+                --from-file=li-httpd=/host-bin/li-httpd \
+                -n lip-registry --dry-run=client -o yaml | kubectl replace -f -
+              echo "lip-rotate-liserver-bin: secret updated"
+          volumeMounts:
+            - name: bin
+              mountPath: /host-bin
+              readOnly: true
+      volumes:
+        - name: bin
+          hostPath:
+            path: /var/lib/lip-registry/build
+            type: Directory

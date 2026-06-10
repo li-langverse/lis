@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lip-lan-gateway-probe
+  namespace: lip-registry
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      hostNetwork: true
+      containers:
+        - name: probe
+          image: curlimages/curl:8.5.0
+          command:
+            - /bin/sh
+            - -lc
+            - |
+              for ip in 192.168.10.1 192.168.10.33 192.168.10.32 77.23.124.82; do
+                echo "=== $ip ==="
+                curl -sS -D - -o /tmp/b --max-time 3 -H "Host: lip.lilangverse.xyz" "http://${ip}/health" 2>&1 | head -n 8 || true
+                head -c 120 /tmp/b 2>/dev/null; echo
+              done

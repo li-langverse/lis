@@ -1,0 +1,298 @@
+# Goal-directed cluster worker — env, goals checklist, loop entrypoint.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lip-platform-worker
+  namespace: lip-registry
+  labels:
+    app: lip-platform-worker
+    app.kubernetes.io/name: lip-platform-worker
+    app.kubernetes.io/component: goal-directed-worker
+    app.kubernetes.io/part-of: lip-platform
+    li-langverse.io/cluster: engine
+data:
+  LI_PLATFORM_ALWAYS_ON: "1"
+  LI_PLATFORM_LOOP_SLEEP_SEC: "300"
+  LI_PLATFORM_STATUS_FILE: "/data/status.json"
+  LI_DATA_DIR: "/data"
+  LIP_REGISTRY_PUBLIC_URL: "https://lip.lilangverse.xyz/v1"
+  LIP_REGISTRY_INCLUSTER_URL: "http://lip-registry-api.lip-registry.svc.cluster.local:54321/v1"
+  LIP_REGISTRY_HEALTH_URL: "http://lip-registry-api.lip-registry.svc.cluster.local:54321/health"
+  LIP_REPO_URL: "https://gitlab.lilangverse.xyz/li-langverse/lip.git"
+  LIP_REPO_BRANCH: "main"
+  LIS_REPO_URL: "https://gitlab.lilangverse.xyz/li-langverse/lis.git"
+  LIS_REPO_BRANCH: "main"
+  LIS_CLI_GIT_URL: "https://gitlab.lilangverse.xyz/li-langverse/lis.git"
+  LIS_CLI_GIT_TAG: "main"
+  LIC_REPO_URL: "https://gitlab.lilangverse.xyz/li-langverse/lic.git"
+  LIC_REPO_BRANCH: "cursor/ph-ml-li-array"
+  TOY_REGISTRY_FIXTURE: "fixtures/pkg_toy_registry"
+  TOY_GIT_INSTALL_PACKAGE: "packages/lis-cli"
+  LI_PLATFORM_WORKSPACE: "/data/workspace"
+  LI_PLATFORM_INGRESS_MANIFEST: "/config/ingress-lip-registry.yaml"
+  goals-checklist.md: |
+    # Li Package Platform — cluster worker goals
+
+    Worker loops until every row is **PASS**; status written to `/data/status.json`.
+
+    | ID | Gate | Command / probe |
+    |----|------|-----------------|
+    | ingress-routes | Public `/v1` returns JSON, not `/login` redirect | `curl -fsS "$LIP_REGISTRY_PUBLIC_URL/../health"` and `curl -fsS -o /dev/null -w '%{http_code}' "$LIP_REGISTRY_PUBLIC_URL/packages?limit=1"` → 200 |
+    | ingress-applied | Ingress resource matches manifest | `kubectl apply -f ingress-lip-registry.yaml` each iteration |
+    | registry-incluster | API healthy inside cluster | `curl -fsS "$LIP_REGISTRY_HEALTH_URL"` |
+    | toy-registry-smoke | Publish/list/yank toy package | `lip/scripts/toy-registry-smoke.sh` with `TOY_SMOKE_START_MOCK=0` |
+    | git-install-smoke | `lip install` from git dep | `lip/scripts/toy-git-install-smoke.sh` or `cd packages/lis-cli && lip install` |
+    | incluster-toy-job | Optional Job completed | `kubectl -n lip-registry get job lip-toy-registry-smoke -o jsonpath='{.status.succeeded}'` |
+
+    ## Definition of done (talk-when-ready)
+
+    1. `curl https://lip.lilangverse.xyz/v1/packages?limit=1` → JSON (no auth redirect on GET)
+    2. `toy-registry-smoke.sh` green against public URL
+    3. `toy-git-install-smoke.sh` green (git repo link)
+    4. In-cluster `lip-toy-registry-smoke` Job Completed (when registry Deployment is up)
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lip-platform-worker-bundle
+  namespace: lip-registry
+  labels:
+    app: lip-platform-worker
+    app.kubernetes.io/name: lip-platform-worker
+    app.kubernetes.io/component: goal-directed-worker
+data:
+  entrypoint.sh: |
+    #!/usr/bin/env bash
+    # Goal-directed lip-platform worker: ingress apply → smokes → status.json
+    set -euo pipefail
+
+    STATUS_FILE="${LI_PLATFORM_STATUS_FILE:-/data/status.json}"
+    LOOP_SLEEP="${LI_PLATFORM_LOOP_SLEEP_SEC:-300}"
+    WORKSPACE="${LI_PLATFORM_WORKSPACE:-/data/workspace}"
+    LIP_ROOT="${LIP_ROOT:-$WORKSPACE/lip}"
+    LIS_ROOT="${LIS_ROOT:-$WORKSPACE/lis}"
+    PUBLIC_BASE="${LIP_REGISTRY_PUBLIC_URL%/v1}"
+    mkdir -p "$(dirname "$STATUS_FILE")" "$WORKSPACE"
+
+    ensure_curl() {
+      if command -v curl >/dev/null 2>&1; then
+        return 0
+      fi
+      echo "lip-platform-worker: installing curl"
+      apt-get update -qq && apt-get install -y -qq curl ca-certificates
+    }
+
+    ensure_kubectl() {
+      if command -v kubectl >/dev/null 2>&1; then
+        return 0
+      fi
+      echo "lip-platform-worker: installing kubectl (python3)"
+      python3 - <<'PY'
+    import ssl
+    import urllib.request
+
+    ctx = ssl.create_default_context()
+    ver = urllib.request.urlopen(
+        "https://dl.k8s.io/release/stable.txt", context=ctx
+    ).read().decode().strip()
+    url = f"https://dl.k8s.io/release/{ver}/bin/linux/amd64/kubectl"
+    urllib.request.urlretrieve(url, "/tmp/kubectl")
+    PY
+      install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
+      rm -f /tmp/kubectl
+    }
+
+    git_clone_or_update() {
+      local url="$1" dest="$2" branch="${3:-main}"
+      case "$url" in
+        https://*|http://*|git@*|ssh://*) ;;
+        *) echo "lip-platform-worker: not a hosted git URL: $url" >&2; return 1 ;;
+      esac
+      if [[ "$url" == *gitlab.lilangverse.xyz* && -n "${GITLAB_TOKEN:-}" ]]; then
+        git config --global url."https://oauth2:${GITLAB_TOKEN}@gitlab.lilangverse.xyz/".insteadOf "https://gitlab.lilangverse.xyz/" 2>/dev/null || true
+      elif [[ "$url" == *github.com* && -n "${GH_TOKEN:-}" ]]; then
+        git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/" 2>/dev/null || true
+      fi
+      if [[ ! -d "$dest/.git" ]]; then
+        git clone --depth 1 --branch "$branch" "$url" "$dest" 2>/dev/null || {
+          git clone --depth 1 "$url" "$dest"
+          git -C "$dest" checkout -B "$branch" "origin/${branch}" 2>/dev/null || git -C "$dest" checkout -B "$branch"
+        }
+      else
+        git -C "$dest" fetch origin --depth 1 "$branch" 2>/dev/null || git -C "$dest" fetch origin --prune
+        git -C "$dest" checkout -B "$branch" "origin/${branch}" 2>/dev/null || git -C "$dest" checkout -B "$branch"
+        git -C "$dest" reset --hard "origin/${branch}" 2>/dev/null || true
+      fi
+    }
+
+    sync_repos() {
+      git_clone_or_update "${LIP_REPO_URL}" "$LIP_ROOT" "${LIP_REPO_BRANCH:-main}"
+      git_clone_or_update "${LIS_REPO_URL}" "$LIS_ROOT" "${LIS_REPO_BRANCH:-main}"
+      chmod +x "$LIP_ROOT/scripts/lip" "$LIP_ROOT/scripts/"*.sh 2>/dev/null || true
+    }
+
+    write_status() {
+      python3 - "$STATUS_FILE" <<'PY'
+    import json, os, sys
+    from datetime import datetime, timezone
+
+    path, payload = sys.argv[1], json.loads(os.environ.get("LI_PLATFORM_STATUS_JSON", "{}"))
+    payload["updated_at"] = datetime.now(timezone.utc).isoformat()
+    payload["worker"] = "lip-platform-worker"
+    payload["namespace"] = os.environ.get("LI_PLATFORM_NAMESPACE", "lip-registry")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, sort_keys=True)
+        f.write("\n")
+    print(f"lip-platform-worker: status -> {path}")
+    PY
+    }
+
+    goal_ingress_apply() {
+      local manifest="${LI_PLATFORM_INGRESS_MANIFEST:-/config/ingress-lip-registry.yaml}"
+      if [[ ! -f "$manifest" ]]; then
+        echo "lip-platform-worker: ingress manifest missing at $manifest" >&2
+        return 1
+      fi
+      kubectl apply -f "$manifest"
+    }
+
+    goal_registry_incluster() {
+      curl -fsS "${LIP_REGISTRY_HEALTH_URL:-http://lip-registry-api.lip-registry.svc.cluster.local:54321/health}" >/dev/null
+    }
+
+    goal_public_v1_no_redirect() {
+      local code body
+      body="$(curl -fsS -o /tmp/lip-v1-body.txt -w '%{http_code}' \
+        "${LIP_REGISTRY_PUBLIC_URL}/packages?limit=1" 2>/dev/null || echo "000")"
+      code="${body:-000}"
+      if [[ "$code" == "301" || "$code" == "302" || "$code" == "307" || "$code" == "308" ]]; then
+        echo "lip-platform-worker: public /v1 redirected ($code)" >&2
+        return 1
+      fi
+      if grep -qi '/login' /tmp/lip-v1-body.txt 2>/dev/null; then
+        echo "lip-platform-worker: public /v1 body looks like login page" >&2
+        return 1
+      fi
+      [[ "$code" == "200" || "$code" == "401" ]]
+    }
+
+    goal_toy_registry_smoke() {
+      export LIS_REPO="$LIS_ROOT"
+      export TOY_SMOKE_START_MOCK=0
+      export LIP_REGISTRY_URL="${LIP_REGISTRY_INCLUSTER_URL:-http://lip-registry-api.lip-registry.svc.cluster.local:54321/v1}"
+      export LIP_REGISTRY_TOKEN="${LIP_REGISTRY_TOKEN:-${LI_REGISTRY_DEV_TOKEN:-}}"
+      export LI_REGISTRY_DEV_TOKEN="${LI_REGISTRY_DEV_TOKEN:-$LIP_REGISTRY_TOKEN}"
+      "$LIP_ROOT/scripts/toy-registry-smoke.sh"
+    }
+
+    goal_git_install_smoke() {
+      if [[ -x "$LIP_ROOT/scripts/toy-git-install-smoke.sh" ]]; then
+        export LIS_REPO="$LIS_ROOT"
+        "$LIP_ROOT/scripts/toy-git-install-smoke.sh"
+        return $?
+      fi
+      local pkg="${LIP_ROOT}/${TOY_GIT_INSTALL_PACKAGE:-packages/lis-cli}"
+      [[ -f "$pkg/li.toml" ]] || { echo "missing $pkg/li.toml" >&2; return 1; }
+      (cd "$pkg" && "$LIP_ROOT/scripts/lip" install)
+      [[ -d "$pkg/.li/vendor/lis" ]] || { echo "git install: vendor/lis missing" >&2; return 1; }
+      echo "git-install-smoke: ok (lis-cli vendor)"
+    }
+
+    run_iteration() {
+      local results_json='{"goals":{}}'
+      local id ok=1
+
+      for id in ingress-applied registry-incluster toy-registry-smoke git-install-smoke public-v1-no-redirect; do
+        set +e
+        case "$id" in
+          ingress-applied) goal_ingress_apply ;;
+          registry-incluster) goal_registry_incluster ;;
+          toy-registry-smoke) goal_toy_registry_smoke ;;
+          git-install-smoke) goal_git_install_smoke ;;
+          public-v1-no-redirect) goal_public_v1_no_redirect ;;
+        esac
+        local rc=$?
+        set -e
+        results_json="$(python3 -c "import json; d=json.loads('''$results_json'''); d['goals']['$id']={'pass': $( [[ $rc -eq 0 ]] && echo True || echo False ), 'exit': $rc}; print(json.dumps(d))")"
+        [[ $rc -eq 0 ]] || ok=0
+      done
+
+      results_json="$(python3 -c "import json; d=json.loads('''$results_json'''); d['all_pass']=bool($( [[ $ok -eq 1 ]] && echo True || echo False )); print(json.dumps(d))")"
+      export LI_PLATFORM_STATUS_JSON="$results_json"
+      write_status
+      return "$ok"
+    }
+
+    echo "lip-platform-worker: starting loop sleep=${LOOP_SLEEP}s public=${LIP_REGISTRY_PUBLIC_URL}"
+    ensure_kubectl
+    ensure_curl
+    sync_repos
+
+    while true; do
+      set +e
+      run_iteration
+      rc=$?
+      set -e
+      echo "lip-platform-worker: iteration exit=${rc}; sleep ${LOOP_SLEEP}s"
+      sleep "$LOOP_SLEEP"
+    done
+  ingress-lip-registry.yaml: |
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: lip-registry
+      namespace: lip-registry
+      labels:
+        app.kubernetes.io/name: lip-registry
+        app.kubernetes.io/part-of: lip-platform
+        li-langverse.io/cluster: engine
+      annotations:
+        nginx.ingress.kubernetes.io/auth-url: ""
+        nginx.ingress.kubernetes.io/auth-signin: ""
+        nginx.ingress.kubernetes.io/ssl-redirect: "true"
+        nginx.ingress.kubernetes.io/proxy-body-size: "32m"
+        nginx.ingress.kubernetes.io/configuration-snippet: |
+          if ($uri ~* "^/v1/") {
+            set $auth_redirect off;
+          }
+          if ($uri = "/health") {
+            set $auth_redirect off;
+          }
+    spec:
+      ingressClassName: nginx
+      rules:
+        - host: lip.lilangverse.xyz
+          http:
+            paths:
+              - path: /v1
+                pathType: Prefix
+                backend:
+                  service:
+                    name: lip-registry-api
+                    port:
+                      number: 54321
+              - path: /health
+                pathType: Exact
+                backend:
+                  service:
+                    name: lip-registry-api
+                    port:
+                      number: 54321
+              - path: /account
+                pathType: Prefix
+                backend:
+                  service:
+                    name: lip-auth-api
+                    port:
+                      number: 54322
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: lip-static
+                    port:
+                      number: 80
+      tls:
+        - hosts:
+            - lip.lilangverse.xyz
+          secretName: lip-lilangverse-tls

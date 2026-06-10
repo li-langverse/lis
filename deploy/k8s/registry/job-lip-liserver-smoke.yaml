@@ -1,0 +1,30 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lip-liserver-smoke
+  namespace: lip-registry
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: smoke
+          image: ubuntu:24.04
+          command:
+            - /bin/bash
+            - -lc
+            - |
+              set -euo pipefail
+              apt-get update -qq && apt-get install -y -qq curl ca-certificates python3
+              HDR=(-H "Host: lip.lilangverse.xyz")
+              curl -fsS "${HDR[@]}" http://127.0.0.1:80/health
+              echo
+              curl -fsS "${HDR[@]}" "http://127.0.0.1:80/v1/packages?limit=1" | python3 -c \
+                "import json,sys; d=json.load(sys.stdin); assert 'packages' in d or 'total' in d, d"
+              echo "liserver smoke: health + /v1/packages ok"

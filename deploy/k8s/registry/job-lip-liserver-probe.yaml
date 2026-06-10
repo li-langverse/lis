@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lip-liserver-probe
+  namespace: lip-registry
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      hostPID: true
+      hostNetwork: true
+      containers:
+        - name: probe
+          image: ubuntu:24.04
+          securityContext:
+            privileged: true
+          command:
+            - /bin/bash
+            - -lc
+            - |
+              apt-get update -qq && apt-get install -y -qq curl iproute2 util-linux
+              echo "=== :80 listeners on host ==="
+              nsenter -t 1 -m -u -i -n -- ss -tlnp | grep ':80 ' || true
+              curl -sS -D - -H "Host: lip.lilangverse.xyz" http://127.0.0.1/health -o /tmp/b | head -12
+              cat /tmp/b; echo

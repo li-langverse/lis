@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gitlab-config
+  namespace: gitlab
+  labels:
+    app: gitlab
+    app.kubernetes.io/part-of: gitlab-ha
+data:
+  GITLAB_OMNIBUS_BASE: |
+    nginx['listen_port'] = 80
+    nginx['listen_https'] = false
+    gitlab_rails['gitlab_shell_ssh_port'] = 2222
+    prometheus_monitoring['enable'] = false
+    alertmanager['enable'] = false
+    node_exporter['enable'] = false
+    redis_exporter['enable'] = false
+    postgres_exporter['enable'] = false
+    gitlab_exporter['enable'] = false
+    pgbouncer_exporter['enable'] = false
+    gitlab_kas['enable'] = false
+    registry['enable'] = false
+    puma['worker_processes'] = 4
+    sidekiq['max_concurrency'] = 10

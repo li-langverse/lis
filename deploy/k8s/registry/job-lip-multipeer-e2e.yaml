@@ -1,0 +1,63 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lip-multipeer-e2e
+  namespace: lip-registry
+spec:
+  ttlSecondsAfterFinished: 900
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: e2e
+          image: python:3.12-slim
+          command:
+            - /bin/bash
+            - -lc
+            - |
+              set -euo pipefail
+              apt-get update -qq && apt-get install -y -qq curl ca-certificates git
+              LIS_REF="${LIS_GIT_REF:-feat/lip-registry-p5-edge}"
+              LIS_REPO_URL="${LIS_REPO_URL:-https://gitlab.lilangverse.xyz/li-langverse/lis.git}"
+              if [[ "$LIS_REPO_URL" == *gitlab.lilangverse.xyz* && -n "${GITLAB_TOKEN:-}" ]]; then
+                git config --global url."https://oauth2:${GITLAB_TOKEN}@gitlab.lilangverse.xyz/".insteadOf "https://gitlab.lilangverse.xyz/" 2>/dev/null || true
+              elif [[ "$LIS_REPO_URL" == *github.com* && -n "${GH_TOKEN:-}" ]]; then
+                git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/" 2>/dev/null || true
+              fi
+              git clone --depth 1 --branch "$LIS_REF" "$LIS_REPO_URL" /src/lis
+              export LIP_REGISTRY_TOKEN="${LIP_REGISTRY_TOKEN}"
+              export REGISTRY_HOST=127.0.0.1
+              export REGISTRY_PORT=80
+              export LIP_REGISTRY_HOST=lip.lilangverse.xyz
+              export LIP_PEER_A_URL=http://lip-peer-a.lip-registry.svc.cluster.local:8765/v1
+              export LIP_PEER_B_URL=http://lip-peer-b.lip-registry.svc.cluster.local:8766/v1
+              curl -fsS -H "Host: lip.lilangverse.xyz" http://127.0.0.1:80/health
+              echo
+              bash /src/lis/scripts/lip-multipeer-e2e.sh
+          envFrom:
+            - configMapRef:
+                name: lip-registry-config
+          env:
+            - name: GITLAB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: GITLAB_TOKEN
+                  optional: true
+            - name: GH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: GH_TOKEN
+                  optional: true
+          env:
+            - name: LIP_REGISTRY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: LI_REGISTRY_DEV_TOKEN

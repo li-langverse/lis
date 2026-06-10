@@ -1,0 +1,45 @@
+# lip.lilangverse.xyz — Li package registry public edge (liserver / li-httpd).
+# Upstream: registry API (in-cluster Service DNS or NodePort on engine).
+#
+# Validate:  lis http validate deploy/edge/lip-registry.httpd.toml
+# Flatten:   python3 ../li-httpd/scripts/flatten-httpd-config.py deploy/edge/lip-registry.httpd.toml -o /tmp/lip.runtime.conf
+# Render:    lis http render-caddy deploy/edge/lip-registry.httpd.toml  (bridge only — prefer native li-httpd)
+
+[server]
+listen = ":443"
+listen_http = ":80"
+host = "lip.lilangverse.xyz"
+document_root = "/var/lib/li-httpd/empty"
+tls = "lets_encrypt"
+
+[tls]
+mode = "lets_encrypt"
+email = "ops@lilangverse.xyz"
+domains = ["lip.lilangverse.xyz"]
+http01_bind = "0.0.0.0:80"
+renew_before_days = 30
+
+[limits]
+max_body = "32m"
+max_header = "32k"
+proxy_max_response_body = "64m"
+rate_limit_rps = 1000
+rate_limit_burst = 2000
+
+# Override at deploy time via LIP_REGISTRY_UPSTREAM (default: engine NodePort).
+[upstreams.registry]
+peers = ["http://127.0.0.1:30422"]
+
+[routes]
+# Public GET must never redirect to /login (registry auth is bearer-only on mutating routes).
+"GET /health" = "proxy:registry"
+"HEAD /health" = "proxy:registry"
+"GET /v1/*" = "proxy:registry"
+"HEAD /v1/*" = "proxy:registry"
+"POST /v1/*" = "proxy:registry"
+"PUT /v1/*" = "proxy:registry"
+"PATCH /v1/*" = "proxy:registry"
+"DELETE /v1/*" = "proxy:registry"
+"OPTIONS /v1/*" = "proxy:registry"
+"GET /account/*" = "proxy:registry"
+"POST /account/*" = "proxy:registry"

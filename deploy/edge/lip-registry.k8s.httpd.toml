@@ -1,0 +1,27 @@
+# lip-registry liserver on engine :80 (k8s hostNetwork pod, cleartext upstream to NodePort).
+# Flatten: python3 ../li-httpd/scripts/flatten-httpd-config.py deploy/edge/lip-registry.k8s.httpd.toml -o deploy/k8s/registry/lip-registry.runtime.conf
+
+[server]
+listen = ":80"
+host = "lip.lilangverse.xyz"
+document_root = "/var/lib/li-httpd/empty"
+
+[limits]
+rate_limit_rps = 1000
+rate_limit_burst = 2000
+
+[upstreams.registry]
+peers = ["http://127.0.0.1:30422"]
+
+[routes]
+"GET /health" = "proxy:registry"
+"HEAD /health" = "proxy:registry"
+"GET /v1/*" = "proxy:registry"
+"HEAD /v1/*" = "proxy:registry"
+"POST /v1/*" = "proxy:registry"
+"PUT /v1/*" = "proxy:registry"
+"PATCH /v1/*" = "proxy:registry"
+"DELETE /v1/*" = "proxy:registry"
+"OPTIONS /v1/*" = "proxy:registry"
+"GET /account/*" = "proxy:registry"
+"POST /account/*" = "proxy:registry"

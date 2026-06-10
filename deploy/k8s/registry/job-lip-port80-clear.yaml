@@ -1,0 +1,31 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lip-port80-clear
+  namespace: lip-registry
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      hostPID: true
+      hostNetwork: true
+      containers:
+        - name: clear
+          image: ubuntu:24.04
+          securityContext:
+            privileged: true
+          command:
+            - /bin/bash
+            - -lc
+            - |
+              apt-get update -qq && apt-get install -y -qq util-linux iproute2
+              nsenter -t 1 -m -u -i -n -- systemctl stop nginx 2>/dev/null || true
+              nsenter -t 1 -m -u -i -n -- systemctl mask nginx 2>/dev/null || true
+              nsenter -t 1 -m -u -i -n -- ss -tlnp | grep ':80 ' || echo "port 80 free"
+              nsenter -t 1 -m -u -i -n -- fuser -k 80/tcp 2>/dev/null || true
+              sleep 1
+              nsenter -t 1 -m -u -i -n -- ss -tlnp | grep ':80 ' || echo "port 80 now free"

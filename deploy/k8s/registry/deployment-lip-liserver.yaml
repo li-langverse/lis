@@ -1,0 +1,106 @@
+# liserver bundle: native li-httpd edge on engine :80 (no socat, no Caddy/nginx).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lip-liserver-bundle
+  namespace: lip-registry
+  labels:
+    app: lip-liserver
+    app.kubernetes.io/part-of: lip-platform
+data:
+  lip-registry.runtime.conf: |
+    listen_port=80
+    document_root=/var/lib/li-httpd/empty
+    rate_limit_rps=1000
+    rate_limit_burst=2000
+    route=GET|/health|exact|proxy
+    route=HEAD|/health|exact|proxy
+    route=GET|/v1|prefix|proxy
+    route=HEAD|/v1|prefix|proxy
+    route=POST|/v1|prefix|proxy
+    route=PUT|/v1|prefix|proxy
+    route=PATCH|/v1|prefix|proxy
+    route=DELETE|/v1|prefix|proxy
+    route=OPTIONS|/v1|prefix|proxy
+    route=GET|/account|prefix|proxy
+    route=POST|/account|prefix|proxy
+    upstream_peer=30422
+    leak_censor_enabled=0
+    tls_enabled=0
+    m2_enabled=0
+    m3_enabled=0
+  entrypoint.sh: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+    install -m 755 /bin/li-httpd /usr/local/bin/li-httpd
+    mkdir -p /var/lib/li-httpd/empty /run/li-httpd
+    install -m 644 /config/lip-registry.runtime.conf /run/li-httpd/lip-registry.runtime.conf
+    nsenter -t 1 -m -u -i -n -- systemctl stop nginx 2>/dev/null || true
+    nsenter -t 1 -m -u -i -n -- systemctl disable nginx 2>/dev/null || true
+    nsenter -t 1 -m -u -i -n -- systemctl mask nginx 2>/dev/null || true
+    nsenter -t 1 -m -u -i -n -- systemctl stop caddy 2>/dev/null || true
+    nsenter -t 1 -m -u -i -n -- systemctl disable caddy 2>/dev/null || true
+    nsenter -t 1 -m -u -i -n -- fuser -k 80/tcp 2>/dev/null || true
+    sleep 2
+    curl -fsS http://127.0.0.1:30422/health >/dev/null
+    exec /usr/local/bin/li-httpd /run/li-httpd/lip-registry.runtime.conf
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lip-liserver
+  namespace: lip-registry
+  labels:
+    app: lip-liserver
+    app.kubernetes.io/name: lip-liserver
+    app.kubernetes.io/component: edge
+    app.kubernetes.io/part-of: lip-platform
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: lip-liserver
+  template:
+    metadata:
+      labels:
+        app: lip-liserver
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      imagePullSecrets:
+        - name: ghcr-li-langverse
+      containers:
+        - name: liserver
+          image: ghcr.io/li-langverse/lic-ci:ubuntu24-llvm22
+          securityContext:
+            privileged: true
+          command: ["/bin/bash", "/config/entrypoint.sh"]
+          ports:
+            - containerPort: 80
+              protocol: TCP
+          volumeMounts:
+            - name: li-httpd-bin
+              mountPath: /bin/li-httpd
+              subPath: li-httpd
+            - name: config
+              mountPath: /config
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+      volumes:
+        - name: li-httpd-bin
+          secret:
+            secretName: lip-liserver-bin
+            defaultMode: 0755
+        - name: config
+          configMap:
+            name: lip-liserver-bundle
+            defaultMode: 0755

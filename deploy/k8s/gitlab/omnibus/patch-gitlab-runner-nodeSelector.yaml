@@ -1,0 +1,11 @@
+﻿# Strategic merge patch: pin gitlab-runner to the engine pool (homelab-k3s Deployment).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitlab-runner
+  namespace: gitlab
+spec:
+  template:
+    spec:
+      nodeSelector:
+        li-langverse.io/node-pool: engine

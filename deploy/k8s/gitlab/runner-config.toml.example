@@ -1,0 +1,27 @@
+# homelab-k8s GitLab Runner config (gitlab-runner-config PVC on engine)
+# Apply via write-runner-cfg pod; token from GitLab UI / rails runner.
+
+concurrent = 2
+check_interval = 3
+log_level = "info"
+listen_address = ":9252"
+
+[[runners]]
+  name = "homelab-k8s"
+  url = "http://gitlab.gitlab.svc.cluster.local"
+  token = "<RUNNER_TOKEN>"
+  executor = "kubernetes"
+  run_untagged = true
+  locked = false
+  tag_list = ["homelab-k8s"]
+  clone_url = "http://gitlab.gitlab.svc.cluster.local"
+  environment = ["GIT_SSL_NO_VERIFY=true"]
+  [runners.kubernetes]
+    namespace = "gitlab"
+    service_account = "gitlab-runner"
+    helper_image = "registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-v17.11.4"
+    pull_policy = "if-not-present"
+    helper_image_pull_policy = "if-not-present"
+    allowed_pull_policies = ["always", "if-not-present"]
+    [runners.kubernetes.node_selector]
+      "kubernetes.io/arch" = "amd64"

@@ -1,0 +1,52 @@
+# EMERGENCY ONLY: sideload when ghcr.io/li-langverse/lis:registry-min is unreachable.
+# One-shot: import ghcr.io/li-langverse/lis:registry-min onto engine node containerd.
+# Default path: push to GHCR (beelink-cleanup/scripts/build-push-lis-registry-min.sh) and pull via ghcr-li-langverse.
+# Prerequisite: image tarball served at IMPORT_URL (default blackpearl :18765).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: import-lis-registry-min
+  namespace: lip-registry
+  labels:
+    app.kubernetes.io/name: lip-registry
+    li-langverse.io/one-shot: import-image
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 2
+  template:
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      restartPolicy: Never
+      containers:
+        - name: import
+          image: alpine:3.21
+          securityContext:
+            privileged: true
+          env:
+            - name: IMPORT_URL
+              value: "http://192.168.10.33:18765/lis-registry-min.tar"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eux
+              apk add --no-cache curl
+              curl -fSL "$IMPORT_URL" -o /tmp/lis-registry-min.tar
+              # k3s bundles ctr at /usr/local/bin/ctr; import into k8s.io namespace
+              CTR=/usr/local/bin/ctr
+              if [ ! -x "$CTR" ]; then CTR=/host/usr/local/bin/ctr; fi
+              $CTR -n k8s.io images import /tmp/lis-registry-min.tar
+              $CTR -n k8s.io images ls | grep -E 'li-langverse/lis|registry-min' || true
+              echo "import complete"
+          volumeMounts:
+            - name: host-root
+              mountPath: /host
+              readOnly: true
+      volumes:
+        - name: host-root
+          hostPath:
+            path: /
+            type: Directory

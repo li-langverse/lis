@@ -1,0 +1,56 @@
+# Verify SSD blob store: mount health + PUT/GET roundtrip on engine.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lip-ssd-verify
+  namespace: lip-registry
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: verify
+          image: curlimages/curl:8.14.1
+          command:
+            - /bin/sh
+            - -lc
+            - |
+              set -eu
+              echo "== blob files on SSD mount =="
+              blob_count="$(find /ssd/blobs -type f 2>/dev/null | wc -l || echo 0)"
+              echo "blob files: $blob_count"
+              df -h /ssd 2>/dev/null || true
+              payload="lip-ssd-verify-$(date +%s)"
+              digest="sha256:$(printf '%s' "$payload" | sha256sum | awk '{print $1}')"
+              echo "== PUT/GET via registry :30422 =="
+              curl -fsS -m 30 -X PUT \
+                -H "Host: lip.lilangverse.xyz" \
+                -H "Authorization: Bearer ${TOKEN}" \
+                -H "Content-Type: application/vnd.li.package+tar" \
+                --data-binary "$payload" \
+                "http://127.0.0.1:30422/v1/blobs/${digest}"
+              echo
+              got="$(curl -fsS -m 30 -H "Host: lip.lilangverse.xyz" "http://127.0.0.1:30422/v1/blobs/${digest}")"
+              test "$got" = "$payload"
+              echo "lip-ssd-verify: PASS ($digest on /dev/sdb1)"
+          env:
+            - name: TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: LI_REGISTRY_DEV_TOKEN
+          volumeMounts:
+            - name: ssd
+              mountPath: /ssd
+              readOnly: true
+      volumes:
+        - name: ssd
+          hostPath:
+            path: /var/lib/lip-registry
+            type: Directory

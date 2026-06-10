@@ -1,0 +1,72 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lip-rebuild-liserver-bin
+  namespace: lip-registry
+spec:
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: engine
+      imagePullSecrets:
+        - name: ghcr-li-langverse
+      containers:
+        - name: build
+          image: ghcr.io/li-langverse/lic-ci:ubuntu24-llvm22
+          command:
+            - /bin/bash
+            - -lc
+            - |
+              set -euo pipefail
+              LIC_REF="${LIC_GIT_REF:-cursor/ph-ml-li-array}"
+              LIC_REPO_URL="${LIC_REPO_URL:-https://gitlab.lilangverse.xyz/li-langverse/lic.git}"
+              if [[ "$LIC_REPO_URL" == *gitlab.lilangverse.xyz* && -n "${GITLAB_TOKEN:-}" ]]; then
+                git config --global url."https://oauth2:${GITLAB_TOKEN}@gitlab.lilangverse.xyz/".insteadOf "https://gitlab.lilangverse.xyz/" 2>/dev/null || true
+              elif [[ "$LIC_REPO_URL" == *github.com* && -n "${GH_TOKEN:-}" ]]; then
+                git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/" 2>/dev/null || true
+              fi
+              git clone --depth 1 --branch "$LIC_REF" "$LIC_REPO_URL" /src/lic
+              cd /src/lic
+              # Fallback patches if branch lacks liserver edge fixes yet.
+              sed -i 's/htonl(INADDR_LOOPBACK)/htonl(INADDR_ANY)/' runtime/li_rt_net.c || true
+              sed -i 's/g_lb_mode == HTTPD_LB_MODE_COOKIE;/g_lb_mode == HTTPD_LB_MODE_COOKIE || g_route_count > 1;/' runtime/li_rt_net.c || true
+              sed -i 's/if (g_proxy_snap_ready || g_proxy_snap_recording || slot/if (httpd_proxy_snap_disabled() || g_proxy_snap_ready || g_proxy_snap_recording || slot/' runtime/li_rt_net.c || true
+              sed -i 's/return g_proxy_snap_ready ? 1 : 0;/return (g_proxy_snap_ready \&\& !httpd_proxy_snap_disabled()) ? 1 : 0;/' runtime/li_rt_net.c || true
+              # P5 edge: disable upstream keep-alive reuse — pooled fd hangs on 2nd request.
+              sed -i 's/s->proxy_up_reuse = resp_keep;/s->proxy_up_reuse = 0;/' runtime/li_rt_net.c || true
+              sed -i 's/s->proxy_up_reuse = 1;/s->proxy_up_reuse = 0;/g' runtime/li_rt_net.c || true
+              sed -i 's/upstream_pool_prewarm_all();/((void)0); \/* lip edge: no prewarm *\//' runtime/li_rt_net.c || true
+              ./scripts/build.sh
+              ./scripts/build-li-httpd.sh
+              test -x build/li-httpd
+              install -m 755 build/li-httpd /out/li-httpd
+              /out/li-httpd --help 2>&1 | head -3 || true
+              ls -la /out/li-httpd
+              echo "lip-rebuild-liserver-bin: build ok"
+          envFrom:
+            - configMapRef:
+                name: lip-registry-config
+          env:
+            - name: GITLAB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: GITLAB_TOKEN
+                  optional: true
+            - name: GH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lip-registry-secrets
+                  key: GH_TOKEN
+                  optional: true
+          volumeMounts:
+            - name: out
+              mountPath: /out
+      volumes:
+        - name: out
+          hostPath:
+            path: /var/lib/lip-registry/build
+            type: DirectoryOrCreate

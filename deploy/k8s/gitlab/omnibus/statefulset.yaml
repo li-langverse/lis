@@ -1,0 +1,132 @@
+﻿apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: gitlab
+  namespace: gitlab
+  labels:
+    app: gitlab
+    app.kubernetes.io/part-of: gitlab-ha
+spec:
+  replicas: 1
+  serviceName: gitlab
+  selector:
+    matchLabels:
+      app: gitlab
+  template:
+    metadata:
+      labels:
+        app: gitlab
+    spec:
+      nodeSelector:
+        li-langverse.io/node-pool: engine
+      securityContext:
+        fsGroup: 0
+      initContainers:
+        - name: render-omnibus
+          image: busybox:1.36
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              mkdir -p /etc/gitlab
+              cat /omnibus/omnibus.rb /omnibus-base/GITLAB_OMNIBUS_BASE > /etc/gitlab/gitlab.rb
+              chmod 0600 /etc/gitlab/gitlab.rb
+          volumeMounts:
+            - name: config
+              mountPath: /etc/gitlab
+            - name: omnibus-config
+              mountPath: /omnibus
+              readOnly: true
+            - name: omnibus-base
+              mountPath: /omnibus-base
+              readOnly: true
+      containers:
+        - name: gitlab
+          image: gitlab/gitlab-ce:17.11.4-ce.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+            - name: ssh
+              containerPort: 22
+          env:
+            - name: GITLAB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gitlab-secrets
+                  key: GITLAB_ROOT_PASSWORD
+          resources:
+            requests:
+              cpu: 500m
+              memory: 8Gi
+            limits:
+              cpu: "4"
+              memory: 12Gi
+          startupProbe:
+            httpGet:
+              path: /users/sign_in
+              port: http
+              scheme: HTTP
+              httpHeaders:
+                - name: Host
+                  value: gitlab.lilangverse.xyz
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 40
+          readinessProbe:
+            httpGet:
+              path: /users/sign_in
+              port: http
+              scheme: HTTP
+              httpHeaders:
+                - name: Host
+                  value: gitlab.lilangverse.xyz
+            initialDelaySeconds: 120
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /users/sign_in
+              port: http
+              scheme: HTTP
+              httpHeaders:
+                - name: Host
+                  value: gitlab.lilangverse.xyz
+            initialDelaySeconds: 600
+            periodSeconds: 60
+            timeoutSeconds: 10
+            failureThreshold: 6
+          volumeMounts:
+            - name: config
+              mountPath: /etc/gitlab
+            - name: data
+              mountPath: /var/opt/gitlab
+            - name: logs
+              mountPath: /var/log/gitlab
+            - name: dshm
+              mountPath: /dev/shm
+      volumes:
+        - name: config
+          emptyDir: {}
+        - name: logs
+          emptyDir: {}
+        - name: data
+          persistentVolumeClaim:
+            claimName: gitlab-data
+        - name: omnibus-config
+          secret:
+            secretName: gitlab-secrets
+            items:
+              - key: omnibus.rb
+                path: omnibus.rb
+        - name: omnibus-base
+          configMap:
+            name: gitlab-config
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
