@@ -14,7 +14,11 @@ Usage:
   lis db start [--profile NAME] [--foreground]
   lis db stop
   lis db status
+  lis db setup              # migrate + ensure auth schema (first-time / homelab)
   lis db migrate [--to REV]
+  lis db backup -o PATH.tar.gz
+  lis db restore PATH.tar.gz [--force]
+  lis db import-auth PATH   # one-shot auth-mock.json → lidb catalog
   lis http validate <config.toml>
   lis http flatten <config.toml> [-o PATH]
   lis http render-caddy <config.toml> [-o PATH]
@@ -28,6 +32,8 @@ Environment (db subcommands):
   LI_API_PORT   REST/PostgREST-shaped API (default: 54321)
   LI_DB_PORT    Postgres wire / lidb (default: 54322)
   LI_REGISTRY_API  Start registry REST on db start (default: 1; set 0 to skip)
+  LI_AUTH_BACKEND  auto | lidb | mock (default: auto — lidb when catalog exists)
+  LIP_BLOB_DIR     Package blob CAS root (default: LI_DATA_DIR/blobs)
   LI_REALTIME_PORT WebSocket Realtime (default: 54323; stack-full profile)
   LI_REALTIME_API  Start Realtime WS on db start (default: 1 for stack-full)
 
@@ -242,8 +248,52 @@ lis_db_migrate() {
   if ! lis_db_engine_ensure "$data_dir"; then
     exit 1
   fi
+  export PYTHONPATH="${LIS_ROOT}${PYTHONPATH:+:$PYTHONPATH}"
+  python3 -c "from routes.auth.lidb_snapshot import ensure_auth_schema; ensure_auth_schema('${data_dir}')"
   echo "${to_rev}" >"${data_dir}/.lis-db-migrate-rev"
-  echo "lis db migrate: applied native bootstrap to ${to_rev}"
+  echo "lis db migrate: applied native bootstrap + auth schema to ${to_rev}"
+}
+
+lis_db_setup() {
+  local data_dir="${LI_DATA_DIR:-${HOME}/.local/share/lis/data}"
+  echo "lis db setup: data_dir=${data_dir}"
+  lis_db_migrate head
+  lis_db_status
+  echo "lis db setup: next — lis db start --foreground (or deploy lip-registry on homelab)"
+}
+
+lis_db_backup() {
+  local out=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -o|--output) out="$2"; shift 2 ;;
+      *) echo "lis db backup: unknown $1" >&2; exit 1 ;;
+    esac
+  done
+  [[ -n "$out" ]] || { echo "lis db backup: -o PATH.tar.gz required" >&2; exit 1; }
+  export PYTHONPATH="${LIS_ROOT}${PYTHONPATH:+:$PYTHONPATH}"
+  python3 "${LIS_ROOT}/scripts/lidb_backup.py" backup -o "$out"
+}
+
+lis_db_restore() {
+  local archive=""
+  local force=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --force) force="--force"; shift ;;
+      *) archive="$1"; shift ;;
+    esac
+  done
+  [[ -n "$archive" ]] || { echo "lis db restore: ARCHIVE.tar.gz required" >&2; exit 1; }
+  export PYTHONPATH="${LIS_ROOT}${PYTHONPATH:+:$PYTHONPATH}"
+  python3 "${LIS_ROOT}/scripts/lidb_backup.py" restore "$archive" $force
+}
+
+lis_db_import_auth() {
+  local mock="${1:-}"
+  [[ -n "$mock" ]] || { echo "lis db import-auth: auth-mock.json path required" >&2; exit 1; }
+  export PYTHONPATH="${LIS_ROOT}${PYTHONPATH:+:$PYTHONPATH}"
+  python3 "${LIS_ROOT}/scripts/lidb_backup.py" import-auth "$mock"
 }
 
 lis_http_validate() {
@@ -367,6 +417,20 @@ main() {
           local to="head"
           [[ "${1:-}" == "--to" ]] && { to="$2"; shift 2; }
           lis_db_migrate "$to"
+          ;;
+        setup) lis_db_setup ;;
+        backup)
+          shift
+          lis_db_backup "$@"
+          ;;
+        restore)
+          shift
+          lis_db_restore "$@"
+          ;;
+        import-auth)
+          shift
+          [[ $# -ge 1 ]] || { echo "lis db import-auth: mock.json required" >&2; exit 1; }
+          lis_db_import_auth "$1"
           ;;
         -h|--help|help) lis_usage ;;
         *) echo "lis db: unknown subcommand: $1" >&2; lis_usage; exit 1 ;;

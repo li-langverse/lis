@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lip-registry-backup
+  namespace: lip-registry
+  labels:
+    app.kubernetes.io/name: lip-registry-backup
+    app.kubernetes.io/part-of: lip-platform
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi

@@ -1,0 +1,60 @@
+# Li-native backup: lidb catalog.heap + blob CAS → PVC /backups
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: lip-registry-backup
+  namespace: lip-registry
+  labels:
+    app.kubernetes.io/name: lip-registry-backup
+    app.kubernetes.io/part-of: lip-platform
+spec:
+  schedule: "0 4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          nodeSelector:
+            kubernetes.io/hostname: engine
+          restartPolicy: OnFailure
+          containers:
+            - name: backup
+              image: python:3.12-slim
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/bash
+                - -lc
+                - |
+                  set -euo pipefail
+                  apt-get update -qq && apt-get install -y -qq --no-install-recommends git ca-certificates
+                  LIS_DIR=/opt/lis
+                  if [[ ! -d "$LIS_DIR/routes" ]]; then
+                    git clone --depth 1 "${LIS_REPO_URL:-https://gitlab.lilangverse.xyz/li-langverse/lis.git}" "$LIS_DIR"
+                  fi
+                  export PYTHONPATH="$LIS_DIR"
+                  export LI_DATA_DIR=/data
+                  export LIP_BLOB_DIR=/data/blobs
+                  STAMP=$(date -u +%Y%m%d-%H%M)
+                  OUT="/backups/lip-registry-${STAMP}.tar.gz"
+                  python3 "$LIS_DIR/scripts/lidb_backup.py" backup -o "$OUT"
+                  ls -lh /backups/lip-registry-*.tar.gz | tail -5
+                  # keep last 14 daily archives
+                  ls -1t /backups/lip-registry-*.tar.gz 2>/dev/null | tail -n +15 | xargs -r rm -f
+              env:
+                - name: LIS_REPO_URL
+                  value: "https://gitlab.lilangverse.xyz/li-langverse/lis.git"
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                  readOnly: true
+                - name: backups
+                  mountPath: /backups
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: lip-registry-data
+            - name: backups
+              persistentVolumeClaim:
+                claimName: lip-registry-backup

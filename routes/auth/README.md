@@ -45,10 +45,23 @@ python3 routes/auth/test_auth_smoke.py
 
 Or use `lip/scripts/lip-login.sh` after starting the server.
 
-## Storage
+## Storage (Li-native)
 
-- MVP: `LI_DATA_DIR/auth-mock.json` (users, publishers, `api_tokens` aligned with lidb `004_auth_tokens.sql`)
-- Future: lidb `users` DDL + `api_tokens` table via liorm
+| Backend | Env | Path |
+|---------|-----|------|
+| **lidb** (production) | `LI_AUTH_BACKEND=lidb` or `auto` + catalog exists | `LI_DATA_DIR/.lidb/catalog.heap` |
+| **mock** (offline dev) | `LI_AUTH_BACKEND=mock` or `LI_REGISTRY_MOCK=1` | `LI_DATA_DIR/auth-mock.json` |
+
+Setup:
+
+```bash
+./bin/lis db setup                    # ensure auth tables in catalog.heap
+./bin/lis db import-auth auth-mock.json   # optional migration from JSON
+```
+
+Schema: `lidb/migrations/004_auth_tokens.sql`, `005_registry_security.sql`.
+
+Backup: `./bin/lis db backup -o lip-registry.tar.gz` (catalog + blobs). See [docs/registry-setup-backup.md](../../docs/registry-setup-backup.md).
 
 ## Registry integration
 

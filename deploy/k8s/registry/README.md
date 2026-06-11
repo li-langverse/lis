@@ -177,6 +177,10 @@ Public **GET `/v1`** must return JSON (200 or 401), **not** an HTML `/login` red
 
 Apply static site: `deploy/k8s/registry/scripts/apply-lip-static-site.sh`
 
+**Full homelab setup:** `deploy/k8s/registry/scripts/setup-lip-registry.sh`
+
+**Li-native backup:** `deploy/k8s/registry/backup/` (daily CronJob → PVC). Docs: [registry-setup-backup.md](../../../docs/registry-setup-backup.md).
+
 Router: forward WAN **80/443** to the **ingress controller node**, not port **54321**.
 
 ## ConfigMap env (worker)
