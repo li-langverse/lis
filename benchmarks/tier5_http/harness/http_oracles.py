@@ -625,10 +625,13 @@ def start_li_bench(port: int, doc_root: Path) -> subprocess.Popen[str] | None:
     li_bin = resolve_li_httpd_bin()
     if not li_bin:
         return None
+    env = os.environ.copy()
+    env.setdefault("LI_HTTPD_ACCESS_LOG", "0")
     return subprocess.Popen(
         [str(li_bin), str(port), str(doc_root.resolve())],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        env=env,
     )
 
 
